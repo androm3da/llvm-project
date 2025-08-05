@@ -41,6 +41,7 @@ public:
                   uint64_t branchAddr, const Symbol &s,
                   int64_t a) const override;
   bool inBranchRange(RelType type, uint64_t src, uint64_t dst) const override;
+  uint32_t getThunkSectionSpacing() const override;
   void relocate(uint8_t *loc, const Relocation &rel,
                 uint64_t val) const override;
   void writePltHeader(uint8_t *buf) const override;
@@ -285,6 +286,12 @@ bool Hexagon::inBranchRange(RelType type, uint64_t src, uint64_t dst) const {
     return true;
   }
   llvm_unreachable("unsupported relocation");
+}
+
+uint32_t Hexagon::getThunkSectionSpacing() const {
+  // Use 6MB spacing to provide better coverage within large sections
+  // while maintaining reasonable margin for thunk section growth.
+  return 0x600000;
 }
 
 bool Hexagon::needsThunk(RelExpr expr, RelType type, const InputFile *file,

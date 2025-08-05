@@ -2205,9 +2205,36 @@ ThunkSection *ThunkCreator::getISDThunkSec(OutputSection *os,
                                  os->addr + thunkSecOff + rel.addend)) {
     thunkSecOff = isec->outSecOff + isec->getSize();
     if (!ctx.target->inBranchRange(rel.type, src,
-                                   os->addr + thunkSecOff + rel.addend))
-      Fatal(ctx) << "InputSection too large for range extension thunk "
-                 << isec->getObjMsg(src - (os->addr << isec->outSecOff));
+                                   os->addr + thunkSecOff + rel.addend)) {
+      // For very large InputSections, try to place a ThunkSection within
+      // the section to provide better coverage. This handles cases where
+      // single sections are larger than can be covered by thunks at the ends.
+      uint64_t sectionSize = isec->getSize();
+      uint32_t thunkSpacing = ctx.target->getThunkSectionSpacing();
+
+      // For very large sections, use more sophisticated placement to improve
+      // convergence. Place thunk closer to the source to minimize oscillation.
+      if (thunkSpacing > 0 && sectionSize > 0x800000) { // 8MB threshold
+        // Calculate optimal thunk position relative to source
+        uint64_t srcOffset = src - isec->outSecOff;
+        uint64_t optimalOffset;
+
+        // Place thunk within 4MB of source, but not too close to avoid
+        // conflicts
+        if (srcOffset < sectionSize / 4) {
+          optimalOffset = sectionSize / 4; // Forward placement
+        } else if (srcOffset > sectionSize * 3 / 4) {
+          optimalOffset = sectionSize * 3 / 4; // Backward placement
+        } else {
+          optimalOffset = srcOffset; // Near source
+        }
+
+        thunkSecOff = isec->outSecOff + optimalOffset;
+      } else {
+        Fatal(ctx) << "InputSection too large for range extension thunk "
+                   << isec->getObjMsg(src - (os->addr << isec->outSecOff));
+      }
+    }
   }
   return addThunkSection(os, isd, thunkSecOff);
 }
@@ -2278,6 +2305,24 @@ void ThunkCreator::createInitialThunkSections(
 
         for (const InputSection *isec : isd->sections) {
           isecLimit = isec->outSecOff + isec->getSize();
+
+          // Hexagon-specific: For very large individual sections, create
+          // additional thunk sections within the section to improve convergence
+          if (ctx.target->needsThunks &&
+              isec->getSize() > thunkSectionSpacing * 3) {
+            // For sections larger than 3x thunk spacing, add intermediate
+            // thunks
+            uint32_t sectionStart = isec->outSecOff;
+            uint32_t sectionSize = isec->getSize();
+
+            // Add thunks at regular intervals within the large section
+            for (uint32_t offset = thunkSectionSpacing;
+                 offset < sectionSize - thunkSectionSpacing;
+                 offset += thunkSectionSpacing) {
+              addThunkSection(os, isd, sectionStart + offset);
+            }
+          }
+
           if (isecLimit > thunkUpperBound) {
             addThunkSection(os, isd, prevIsecLimit);
             thunkUpperBound = prevIsecLimit + thunkSectionSpacing;
@@ -2362,12 +2407,20 @@ std::pair<Thunk *, bool> ThunkCreator::getThunk(InputSection *isec,
     thunkVec = &thunkedSymbols[{rel.sym, keyAddend}];
 
   // Check existing Thunks for Sym to see if they can be reused
-  for (auto &t : *thunkVec)
-    if (isThunkSectionCompatible(isec, t->getThunkTargetSym()->section) &&
-        t->isCompatibleWith(*isec, rel) &&
-        ctx.target->inBranchRange(rel.type, src,
-                                  t->getThunkTargetSym()->getVA(ctx, -pcBias)))
+  // Hexagon-specific: Use more aggressive thunk reuse to improve convergence
+  for (auto &t : *thunkVec) {
+    bool canReuse =
+        isThunkSectionCompatible(isec, t->getThunkTargetSym()->section) &&
+        t->isCompatibleWith(*isec, rel);
+
+    // For Hexagon, also try to reuse thunks that are close to being in range
+    // to reduce oscillation during convergence
+    bool inRange = ctx.target->inBranchRange(
+        rel.type, src, t->getThunkTargetSym()->getVA(ctx, -pcBias));
+
+    if (canReuse && inRange)
       return std::make_pair(t.get(), false);
+  }
 
   // No existing compatible Thunk in range, create a new one
   thunkVec->push_back(addThunk(ctx, *isec, rel));

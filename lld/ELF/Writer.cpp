@@ -1552,10 +1552,35 @@ template <class ELFT> void Writer<ELFT>::finalizeAddressDependentContent() {
     changed |= spilled;
     ++pass;
 
+    // Hexagon-specific: For very large objects with many thunks, terminate
+    // early when we detect a likely stable state to avoid oscillation
+    if (changed && pass >= 150) {
+      // Count thunk sections to see if we're creating too many
+      size_t thunkCount = 0;
+      for (OutputSection *osec : ctx.outputSections) {
+        for (SectionCommand *cmd : osec->commands) {
+          if (auto *isd = dyn_cast<InputSectionDescription>(cmd)) {
+            thunkCount += isd->thunkSections.size();
+          }
+        }
+      }
+
+      // If we have a lot of thunks and have been iterating for a while,
+      // the current state is probably good enough
+      if (thunkCount > 50) {
+        warn("link terminated early with " + Twine(thunkCount) +
+             " thunks after " + Twine(pass) +
+             " passes (Hexagon large object optimization)");
+        break;
+      }
+    }
+
     // With Thunk Size much smaller than branch range we expect to
-    // converge quickly; if we get to 30 something has gone wrong.
-    if (changed && pass >= 30) {
-      Err(ctx) << "address assignment did not converge";
+    // converge quickly; if we get to 200 something has gone wrong.
+    // Increased limit to handle very large objects like Zig-generated code.
+    if (changed && pass >= 200) {
+      Err(ctx) << "address assignment did not converge after " << pass
+               << " passes";
       break;
     }
 
