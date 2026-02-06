@@ -977,7 +977,13 @@ void RelocScan::process(RelExpr expr, RelType type, uint64_t offset,
         sym.setFlags(NEEDS_GOT | NEEDS_GOT_NONAUTH);
     }
   } else if (needsPlt(expr)) {
-    sym.setFlags(NEEDS_PLT);
+    // For Hexagon TLS GD PLT relocations (call foo@GDPLT), the PLT entry should
+    // be for __tls_get_addr, not the TLS symbol. hexagonTLSSymbolUpdate() will
+    // rebind these relocations to __tls_get_addr and create its PLT entry.
+    if (!(ctx.arg.emachine == EM_HEXAGON && sym.isTls() &&
+          (type == R_HEX_GD_PLT_B22_PCREL || type == R_HEX_GD_PLT_B22_PCREL_X ||
+           type == R_HEX_GD_PLT_B32_PCREL_X)))
+      sym.setFlags(NEEDS_PLT);
   } else if (LLVM_UNLIKELY(isIfunc)) {
     sym.setFlags(HAS_DIRECT_RELOC);
   }
@@ -2196,7 +2202,7 @@ bool ThunkCreator::createThunks(uint32_t pass,
 }
 
 // The following aid in the conversion of call x@GDPLT to call __tls_get_addr
-// hexagonNeedsTLSSymbol scans for relocations would require a call to
+// hexagonNeedsTLSSymbol scans for relocations that would require a call to
 // __tls_get_addr.
 // hexagonTLSSymbolUpdate rebinds the relocation to __tls_get_addr.
 bool elf::hexagonNeedsTLSSymbol(ArrayRef<OutputSection *> outputSections) {
@@ -2213,25 +2219,33 @@ bool elf::hexagonNeedsTLSSymbol(ArrayRef<OutputSection *> outputSections) {
   return needTlsSymbol;
 }
 
+// Check if any input section has a TLS GD PLT relocation. This is used early
+// in the linking process before output sections are populated.
+bool elf::hexagonNeedsTLSSymbolEarly(Ctx &ctx) {
+  for (InputSectionBase *sec : ctx.inputSections) {
+    auto *isec = dyn_cast<InputSection>(sec);
+    if (!isec)
+      continue;
+    for (const Relocation &rel : isec->relocs())
+      if (rel.sym->type == llvm::ELF::STT_TLS && rel.expr == R_PLT_PC)
+        return true;
+  }
+  return false;
+}
+
 void elf::hexagonTLSSymbolUpdate(Ctx &ctx) {
   Symbol *sym = ctx.symtab->find("__tls_get_addr");
   if (!sym)
     return;
-  bool needEntry = true;
+  // Rebind TLS GD PLT relocations from the TLS symbol to __tls_get_addr.
+  // The PLT entry for __tls_get_addr should already be created by
+  // postScanRelocations since NEEDS_PLT is set on it.
   forEachInputSectionDescription(
       ctx.outputSections, [&](OutputSection *os, InputSectionDescription *isd) {
         for (InputSection *isec : isd->sections)
           for (Relocation &rel : isec->relocs())
-            if (rel.sym->type == llvm::ELF::STT_TLS && rel.expr == R_PLT_PC) {
-              if (needEntry) {
-                if (sym->auxIdx == 0)
-                  sym->allocateAux(ctx);
-                addPltEntry(ctx, *ctx.in.plt, *ctx.in.gotPlt, *ctx.in.relaPlt,
-                            ctx.target->pltRel, *sym);
-                needEntry = false;
-              }
+            if (rel.sym->type == llvm::ELF::STT_TLS && rel.expr == R_PLT_PC)
               rel.sym = sym;
-            }
       });
 }
 

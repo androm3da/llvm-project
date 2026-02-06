@@ -1920,6 +1920,17 @@ template <class ELFT> void Writer<ELFT>::finalizeSections() {
     // a linker-script-defined symbol is absolute.
     scanRelocations<ELFT>(ctx);
     reportUndefinedSymbols(ctx);
+
+    // For Hexagon TLS GD PLT relocations, create __tls_get_addr symbol before
+    // postScanRelocations so that its PLT entry is created at the right time.
+    if (ctx.arg.emachine == EM_HEXAGON && hexagonNeedsTLSSymbolEarly(ctx)) {
+      Symbol *sym =
+          ctx.symtab->addSymbol(Undefined{ctx.internalFile, "__tls_get_addr",
+                                          STB_GLOBAL, STV_DEFAULT, STT_NOTYPE});
+      sym->isPreemptible = true;
+      sym->setFlags(NEEDS_PLT);
+    }
+
     postScanRelocations(ctx);
 
     if (ctx.in.plt && ctx.in.plt->isNeeded())
@@ -2037,15 +2048,12 @@ template <class ELFT> void Writer<ELFT>::finalizeSections() {
       sec->addrExpr = [=] { return i->second; };
   }
 
-  // With the ctx.outputSections available check for GDPLT relocations
-  // and add __tls_get_addr symbol if needed.
-  if (ctx.arg.emachine == EM_HEXAGON &&
-      hexagonNeedsTLSSymbol(ctx.outputSections)) {
-    Symbol *sym =
-        ctx.symtab->addSymbol(Undefined{ctx.internalFile, "__tls_get_addr",
-                                        STB_GLOBAL, STV_DEFAULT, STT_NOTYPE});
-    sym->isPreemptible = true;
-    ctx.partitions[0].dynSymTab->addSymbol(sym);
+  // Note: __tls_get_addr is now created earlier (before postScanRelocations)
+  // so that its PLT entry is created at the right time. We just need to add
+  // it to the dynamic symbol table here if it exists.
+  if (ctx.arg.emachine == EM_HEXAGON) {
+    if (Symbol *sym = ctx.symtab->find("__tls_get_addr"))
+      ctx.partitions[0].dynSymTab->addSymbol(sym);
   }
 
   // This is a bit of a hack. A value of 0 means undef, so we set it
