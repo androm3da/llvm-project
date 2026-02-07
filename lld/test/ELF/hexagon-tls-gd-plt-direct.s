@@ -3,11 +3,9 @@
 # RUN: ld.lld -shared %t.o -o %t.so
 # RUN: llvm-readobj -r %t.so | FileCheck %s
 
-## This test verifies that lld doesn't crash when there's a direct GD_PLT
-## relocation against __tls_get_addr, which can happen when the assembler
-## incorrectly marks __tls_get_addr as STT_TLS due to the @GDPLT suffix.
-## The linker should handle this gracefully by not creating duplicate PLT
-## entries for __tls_get_addr.
+## This test verifies that lld handles the case where there's a direct GD_PLT
+## relocation against __tls_get_addr. Previously this would create duplicate
+## R_HEX_JMP_SLOT relocations for __tls_get_addr. Now only one is created.
 
 # CHECK:      Section ({{.*}}) .rela.dyn {
 # CHECK-NEXT:   R_HEX_DTPMOD_32 foo 0x0
@@ -24,7 +22,6 @@ _start:
   r2 = add(pc, ##_GLOBAL_OFFSET_TABLE_@PCREL)
   r0 = add(r2, ##foo@GDGOT)
   ## This creates GD_PLT relocations against __tls_get_addr directly
-  ## (not a TLS symbol), which used to cause an assertion failure
   call ##__tls_get_addr@GDPLT
   jumpr r31
 
