@@ -119,6 +119,11 @@ RelExpr Hexagon::getRelExpr(RelType type, const Symbol &s,
     return R_ABS;
   case R_HEX_32_PCREL:
     return R_PC;
+  case R_HEX_GPREL16_0:
+  case R_HEX_GPREL16_1:
+  case R_HEX_GPREL16_2:
+  case R_HEX_GPREL16_3:
+    return RE_HEXAGON_GPREL;
   default:
     Err(ctx) << getErrorLoc(ctx, loc) << "unknown relocation (" << type.v
              << ") against symbol " << &s;
@@ -244,6 +249,14 @@ void Hexagon::scanSectionImpl(InputSectionBase &sec, Relocs<RelTy> rels) {
       ctx.in.gotPlt->hasGotPltOffRel.store(true, std::memory_order_relaxed);
       sec.addReloc({R_TLSGD_GOTPLT, type, offset, addend, &sym});
       continue;
+
+    // GP-relative relocations:
+    case R_HEX_GPREL16_0:
+    case R_HEX_GPREL16_1:
+    case R_HEX_GPREL16_2:
+    case R_HEX_GPREL16_3:
+      expr = RE_HEXAGON_GPREL;
+      break;
 
     default:
       Err(ctx) << getErrorLoc(ctx, sec.content().data() + offset)
@@ -444,6 +457,21 @@ void Hexagon::relocate(uint8_t *loc, const Relocation &rel,
     break;
   case R_HEX_TPREL_16:
     or32le(loc, applyMask(findMaskR16(ctx, read32le(loc)), val & 0xffff));
+    break;
+  case R_HEX_GPREL16_0:
+    or32le(loc, applyMask(findMaskR16(ctx, read32le(loc)), val & 0xffff));
+    break;
+  case R_HEX_GPREL16_1:
+    or32le(loc,
+           applyMask(findMaskR16(ctx, read32le(loc)), (val >> 1) & 0xffff));
+    break;
+  case R_HEX_GPREL16_2:
+    or32le(loc,
+           applyMask(findMaskR16(ctx, read32le(loc)), (val >> 2) & 0xffff));
+    break;
+  case R_HEX_GPREL16_3:
+    or32le(loc,
+           applyMask(findMaskR16(ctx, read32le(loc)), (val >> 3) & 0xffff));
     break;
   case R_HEX_32:
   case R_HEX_32_PCREL:

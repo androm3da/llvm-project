@@ -256,7 +256,7 @@ nop
 
 # CHECK: 01000000 <b_1000000>:
 # CHECK-NEXT: 1000000: {{.*}} {  nop }
-# CHECK-NEXT: 1000004: {{.*}} {  r0 = #0 ; jump 0x1000400 }
-# CHECK-NEXT: 1000008: {{.*}} {  if (r0==#0) jump:t 0x1004000 }
-# CHECK-NEXT: 100000c: {{.*}} {  if (p0) jump:nt 0x1010000 }
-# CHECK-NEXT: 1000010: {{.*}} {  jump 0x1800000 }
+# CHECK-NEXT: 1000004: {{.*}} { r0 = #0 ; jump 0x1000400{{.*}}}
+# CHECK-NEXT: 1000008: {{.*}} { if (r0==#0) jump:t 0x1004000{{.*}}}
+# CHECK-NEXT: 100000c: {{.*}} { if (p0) jump:nt 0x1010000{{.*}}}
+# CHECK-NEXT: 1000010: {{.*}} { jump 0x1800000{{.*}}}

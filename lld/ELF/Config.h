@@ -673,6 +673,9 @@ struct Ctx : CommonLinkerContext {
     // __global_pointer$ for RISC-V.
     Defined *riscvGlobalPointer;
 
+    // _SDA_BASE_ for Hexagon GP-relative small data addressing.
+    Defined *hexagonSdaBase;
+
     // __rel{,a}_iplt_{start,end} symbols.
     Defined *relaIpltStart;
     Defined *relaIpltEnd;

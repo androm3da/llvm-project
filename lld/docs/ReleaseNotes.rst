@@ -49,6 +49,13 @@ ELF Improvements
   ``duplicate symbol`` errors when linking objects that use ``.gnu.linkonce``
   sections, such as Hexagon compiler output with small-data constants.
 
+* Added Hexagon GP-relative addressing support: ``R_HEX_GPREL16_0``,
+  ``R_HEX_GPREL16_1``, ``R_HEX_GPREL16_2``, ``R_HEX_GPREL16_3`` relocations,
+  ``_SDA_BASE_`` symbol, and ``.gnu.linkonce.l4.*``/``.gnu.linkonce.l8.*``
+  to ``.sdata`` output section mapping. This enables linking Hexagon objects
+  that use ``memw(gp+#offset)``/``memd(gp+#offset)`` small-data constant pool
+  loads.
+
 Breaking changes
 ----------------
 

@@ -188,6 +188,14 @@ void elf::addReservedSymbols(Ctx &ctx) {
     // https://sourceware.org/ml/binutils/2004-12/msg00094.html
     if (ctx.symtab->find("__gnu_local_gp"))
       ctx.sym.mipsLocalGp = addAbsolute("__gnu_local_gp");
+  } else if (ctx.arg.emachine == EM_HEXAGON) {
+    // Define _SDA_BASE_ for Hexagon GP-relative addressing.
+    // Value will be set to .sdata start in finalizeSections().
+    Symbol *sym = ctx.symtab->addSymbol(
+        Defined{ctx, ctx.internalFile, "_SDA_BASE_", STB_GLOBAL, STV_HIDDEN,
+                STT_NOTYPE, 0, 0, nullptr});
+    sym->isUsedInRegularObj = true;
+    ctx.sym.hexagonSdaBase = cast<Defined>(sym);
   } else if (ctx.arg.emachine == EM_PPC) {
     // glibc *crt1.o has a undefined reference to _SDA_BASE_. Since we don't
     // support Small Data Area, define it arbitrarily as 0.
@@ -802,6 +810,11 @@ unsigned elf::getSectionRank(Ctx &ctx, OutputSection &osec) {
     // and match GNU ld.
     StringRef name = osec.name;
     if (name == ".sdata" || (osec.type == SHT_NOBITS && name != ".sbss"))
+      rank |= 1;
+  }
+
+  if (ctx.arg.emachine == EM_HEXAGON) {
+    if (osec.flags & SHF_HEX_GPREL)
       rank |= 1;
   }
 
@@ -1860,6 +1873,14 @@ template <class ELFT> void Writer<ELFT>::finalizeSections() {
           if (s && s->isDefined())
             ctx.sym.riscvGlobalPointer = cast<Defined>(s);
         }
+      }
+    }
+
+    if (ctx.arg.emachine == EM_HEXAGON && ctx.sym.hexagonSdaBase) {
+      OutputSection *sec = findSection(ctx, ".sdata");
+      if (sec) {
+        ctx.sym.hexagonSdaBase->section = sec;
+        ctx.sym.hexagonSdaBase->value = 0;
       }
     }
 

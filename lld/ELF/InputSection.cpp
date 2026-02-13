@@ -861,6 +861,8 @@ uint64_t InputSectionBase::getRelocTargetVA(Ctx &ctx, const Relocation &r,
     return getLoongArchPageDelta(r.sym->getGotVA(ctx) + a, p, r.type);
   case RE_MIPS_GOTREL:
     return r.sym->getVA(ctx, a) - ctx.in.mipsGot->getGp(file);
+  case RE_HEXAGON_GPREL:
+    return r.sym->getVA(ctx, a) - ctx.sym.hexagonSdaBase->getVA(ctx, 0);
   case RE_MIPS_GOT_GP:
     return ctx.in.mipsGot->getGp(file) + a;
   case RE_MIPS_GOT_GP_PC: {

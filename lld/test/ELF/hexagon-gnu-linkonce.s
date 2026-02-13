@@ -5,9 +5,13 @@
 
 ## Hexagon's compiler emits small-data constants into .gnu.linkonce.l8.*
 ## sections with global symbols. Verify deduplication and no duplicate
-## symbol errors.
+## symbol errors. Also verify that .gnu.linkonce.l8.* maps to .sdata.
 # RUN: ld.lld %t/a.o %t/b.o -o %t/out
-# RUN: llvm-readelf -s %t/out | FileCheck %s
+# RUN: llvm-readelf -s -S %t/out | FileCheck %s
+
+## Verify .gnu.linkonce.l8.* sections are mapped to .sdata.
+# CHECK:      Name   Type     Address
+# CHECK:      .sdata PROGBITS
 
 # CHECK:     Symbol table '.symtab'
 # CHECK-DAG: {{.*}} GLOBAL {{.*}} .CONST_00000001

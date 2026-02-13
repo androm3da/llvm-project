@@ -110,6 +110,9 @@ StringRef LinkerScript::getOutputSectionName(const InputSectionBase *s) const {
       return ".bss";
     if (type.starts_with("s."))
       return ".sdata";
+    if (type.starts_with("l4.") || type.starts_with("l8.") ||
+        type.starts_with("la."))
+      return ".sdata";
     return s->name;
   }
 
