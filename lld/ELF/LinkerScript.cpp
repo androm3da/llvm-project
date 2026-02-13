@@ -79,6 +79,40 @@ StringRef LinkerScript::getOutputSectionName(const InputSectionBase *s) const {
   if (hasSectionsCommand)
     return s->name;
 
+  // Map .gnu.linkonce.TYPE.* sections to their corresponding output sections.
+  // This is a legacy GCC mechanism predating COMDAT groups.
+  if (s->name.starts_with(".gnu.linkonce.")) {
+    StringRef type = s->name.drop_front(sizeof(".gnu.linkonce.") - 1);
+    // Check multi-char prefixes before single-char to avoid ambiguity.
+    if (type.starts_with("wi."))
+      return ".debug_info";
+    if (type.starts_with("td."))
+      return ".tdata";
+    if (type.starts_with("tb."))
+      return ".tbss";
+    if (type.starts_with("sb2."))
+      return ".sbss2";
+    if (type.starts_with("sb."))
+      return ".sbss";
+    if (type.starts_with("s2."))
+      return ".sdata2";
+    if (type.starts_with("t."))
+      return ".text";
+    if (type.starts_with("ro."))
+      return ".rodata";
+    if (type.starts_with("r."))
+      return ".rodata";
+    if (type.starts_with("d.rel.ro."))
+      return ".data.rel.ro";
+    if (type.starts_with("d."))
+      return ".data";
+    if (type.starts_with("b."))
+      return ".bss";
+    if (type.starts_with("s."))
+      return ".sdata";
+    return s->name;
+  }
+
   // When no SECTIONS is specified, emulate GNU ld's internal linker scripts
   // by grouping sections with certain prefixes.
 

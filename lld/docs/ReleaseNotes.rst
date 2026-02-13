@@ -39,6 +39,15 @@ ELF Improvements
   match the same section (lower value = higher priority; explicit priority
   beats positional last-match-wins; default: positional). In ELF, the glob
   matches input section names (e.g. ``.text.unlikely.code1``).
+* Added support for ``.gnu.linkonce.*`` section deduplication
+  (`#138438 <https://github.com/llvm/llvm-project/issues/138438>`_).
+  ``.gnu.linkonce`` is a legacy GCC mechanism predating COMDAT groups.
+  Sections with the same signature are now deduplicated using first-wins
+  semantics, and interoperate correctly with COMDAT groups that have the same
+  signature. Output section mapping (e.g. ``.gnu.linkonce.t.*`` to ``.text``,
+  ``.gnu.linkonce.d.*`` to ``.data``) is also supported. This resolves
+  ``duplicate symbol`` errors when linking objects that use ``.gnu.linkonce``
+  sections, such as Hexagon compiler output with small-data constants.
 
 Breaking changes
 ----------------

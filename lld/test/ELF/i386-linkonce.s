@@ -4,8 +4,9 @@
 # RUN: llvm-mc -filetype=obj -triple=i386 %t/crti.s -o %t/crti.o
 # RUN: llvm-mc -filetype=obj -triple=i386 %t/elf-init.s -o %t/elf-init.o
 
-## crti.o in i386 glibc<2.32 has .gnu.linkonce.t.__x86.get_pc_thunk.bx that is
-## not fully supported. Test that we don't report
+## crti.o in i386 glibc<2.32 has .gnu.linkonce.t.__x86.get_pc_thunk.bx.
+## Test that .gnu.linkonce deduplication against a COMDAT group with the same
+## signature works, and that we don't report
 ## "relocation refers to a symbol in a discarded section: __x86.get_pc_thunk.bx".
 # RUN: ld.lld %t/a.o %t/crti.o %t/elf-init.o -o /dev/null
 # RUN: ld.lld -shared %t/a.o %t/crti.o %t/elf-init.o -o /dev/null

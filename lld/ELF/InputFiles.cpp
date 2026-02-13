@@ -568,6 +568,18 @@ handleAArch64BAAndGnuProperties(ObjFile<ELFT> *file, Ctx &ctx,
   }
 }
 
+// For ".gnu.linkonce.TYPE.NAME", return NAME (the dedup signature).
+// Returns empty StringRef if the name doesn't match the expected format.
+static StringRef getGnuLinkonceName(StringRef s) {
+  if (!s.starts_with(".gnu.linkonce."))
+    return {};
+  StringRef rest = s.drop_front(sizeof(".gnu.linkonce.") - 1);
+  size_t dot = rest.find('.');
+  if (dot == StringRef::npos || dot + 1 >= rest.size())
+    return {};
+  return rest.substr(dot + 1);
+}
+
 template <class ELFT> void ObjFile<ELFT>::parse(bool ignoreComdats) {
   object::ELFFile<ELFT> obj = this->getObj();
   // Read a section table. justSymbols is usually false.
@@ -585,6 +597,28 @@ template <class ELFT> void ObjFile<ELFT>::parse(bool ignoreComdats) {
   sections.resize(size);
   for (size_t i = 0; i != size; ++i) {
     const Elf_Shdr &sec = objSections[i];
+
+    // Handle .gnu.linkonce deduplication. These sections are a legacy GCC
+    // mechanism predating COMDAT groups: sections with the same signature
+    // should be deduplicated (first-wins). We reuse comdatGroups so that
+    // .gnu.linkonce.t.foo deduplicates against a COMDAT group with
+    // signature "foo".
+    if (sec.sh_type == SHT_PROGBITS || sec.sh_type == SHT_NOTE ||
+        sec.sh_type == SHT_NOBITS) {
+      StringRef name = check(obj.getSectionName(sec, shstrtab));
+      StringRef signature = getGnuLinkonceName(name);
+      if (!signature.empty()) {
+        bool keepSection =
+            ignoreComdats ||
+            ctx.symtab->comdatGroups
+                .try_emplace(CachedHashStringRef(signature), this)
+                .second;
+        if (!keepSection) {
+          sections[i] = &InputSection::discarded;
+          continue;
+        }
+      }
+    }
 
     if (LLVM_LIKELY(sec.sh_type == SHT_PROGBITS))
       continue;
