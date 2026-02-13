@@ -1013,47 +1013,43 @@ HexagonGlobalSchedulerImpl::getNextPURBB(MachineBasicBlock *MBB,
   MachineBasicBlock *SecondBestBB = NULL;
 
   // Catch single BB loops.
-  for (MachineBasicBlock::succ_iterator SI = MBB->succ_begin(),
-                                        SE = MBB->succ_end();
-       SI != SE; ++SI)
-    if (*SI == MBB)
+  for (MachineBasicBlock *Succ : MBB->successors())
+    if (Succ == MBB)
       return NULL;
 
   // Iterate through successors to MBB.
-  for (MachineBasicBlock::succ_iterator SI = MBB->succ_begin(),
-                                        SE = MBB->succ_end();
-       SI != SE; ++SI) {
-    BlockFrequency BlockFreq = MBFI->getBlockFreq(*SI);
+  for (MachineBasicBlock *Succ : MBB->successors()) {
+    BlockFrequency BlockFreq = MBFI->getBlockFreq(Succ);
 
-    LLVM_DEBUG(dbgs() << "\tsucc BB(" << (*SI)->getNumber() << ") freq("
+    LLVM_DEBUG(dbgs() << "\tsucc BB(" << Succ->getNumber() << ") freq("
                       << BlockFreq.getFrequency() << ")");
 
-    if (!SecondBest && getRegionForMBB(PullUpRegions, *SI))
+    if (!SecondBest && getRegionForMBB(PullUpRegions, Succ))
       continue;
 
     // If there is more then one predecessor to this block, do not include it.
     // It means there is a side entrance to it.
-    if (std::next((*SI)->pred_begin()) != (*SI)->pred_end())
+    if (Succ->pred_size() > 1)
       continue;
 
     // If this block is a target of an indirect branch, it should
     // also not be included.
-    if ((*SI)->isEHPad() || (*SI)->hasAddressTaken())
+    if (Succ->isEHPad() || Succ->hasAddressTaken())
       continue;
 
     // Get BB edge frequency.
-    BlockFrequency EdgeFreq = BlockFreq * MBPI->getEdgeProbability(MBB, *SI);
+    BlockFrequency EdgeFreq = BlockFreq * MBPI->getEdgeProbability(MBB, Succ);
     LLVM_DEBUG(dbgs() << "\tedge with freq(" << EdgeFreq.getFrequency()
                       << ")\n");
 
-    if (selectBestBB(EdgeFreq, QII->nonDbgBBSize(*SI), BestBlockFreq,
+    if (selectBestBB(EdgeFreq, QII->nonDbgBBSize(Succ), BestBlockFreq,
                      BestBlockSize)) {
       BestBlockFreq = EdgeFreq;
-      BestBlockSize = QII->nonDbgBBSize(*SI);
+      BestBlockSize = QII->nonDbgBBSize(Succ);
       SecondBestBB = BestBB;
-      BestBB = *SI;
+      BestBB = Succ;
     } else if (!SecondBestBB) {
-      SecondBestBB = *SI;
+      SecondBestBB = Succ;
     }
   }
   if (SecondBest)
@@ -2604,11 +2600,13 @@ bool HexagonGlobalSchedulerImpl::AnalyzeBBBranches(MachineBasicBlock *MBB,
         // Look at the second term if I know it, to find out what is the fall
         // through for this BB.
         FBB = SecondTerm->getOperand(0).getMBB();
-        MachineBasicBlock::const_succ_iterator IMBB = MBB->succ_begin();
-        if (FBB == *IMBB)
-          TBB = *(++IMBB);
+        assert(MBB->succ_size() == 2 && "Expected exactly 2 successors");
+        MachineBasicBlock *Succ0 = *MBB->succ_begin();
+        MachineBasicBlock *Succ1 = *std::next(MBB->succ_begin());
+        if (FBB == Succ0)
+          TBB = Succ1;
         else
-          TBB = *IMBB;
+          TBB = Succ0;
         LLVM_DEBUG(dbgs() << "\t\tSecond br is J2_jump TBB(" << TBB->getNumber()
                           << ") FBB(" << FBB->getNumber() << ").\n");
         return false;
@@ -2627,11 +2625,13 @@ bool HexagonGlobalSchedulerImpl::AnalyzeBBBranches(MachineBasicBlock *MBB,
         ++MBBIter;
         assert(MBBIter != MF.end() && "I give up.");
         FBB = &(*MBBIter);
-        MachineBasicBlock::const_succ_iterator MBBSucc = MBB->succ_begin();
-        if (FBB == *MBBSucc)
-          TBB = *(MBBSucc + 1);
-        else if (FBB == *(MBBSucc + 1)) {
-          TBB = *MBBSucc;
+        assert(MBB->succ_size() == 2 && "Expected exactly 2 successors");
+        MachineBasicBlock *S0 = *MBB->succ_begin();
+        MachineBasicBlock *S1 = *std::next(MBB->succ_begin());
+        if (FBB == S0)
+          TBB = S1;
+        else if (FBB == S1) {
+          TBB = S0;
         } else {
           // This case can arise when the layout successor basic block (++IMBB)
           // got empty during pull-up.
@@ -2641,10 +2641,10 @@ bool HexagonGlobalSchedulerImpl::AnalyzeBBBranches(MachineBasicBlock *MBB,
             ++MBBIter;
           assert(MBBIter != MF.end() && "Malformed BB with invalid successors");
           FBB = &*MBBIter;
-          if (FBB == (*MBBSucc))
-            TBB = *(MBBSucc + 1);
+          if (FBB == S0)
+            TBB = S1;
           else
-            TBB = *MBBSucc;
+            TBB = S0;
         }
         LLVM_DEBUG(dbgs() << "\t\tUse layout TBB(" << TBB->getNumber()
                           << ") FBB(" << FBB->getNumber() << ").\n");
@@ -2665,11 +2665,9 @@ bool HexagonGlobalSchedulerImpl::AnalyzeBBBranches(MachineBasicBlock *MBB,
     } else {
       // Second term is also predicated.
       // Use CFG layout. Assign layout successor as FBB.
-      MachineBasicBlock::succ_iterator IMBB = MBB->succ_begin();
-      while (IMBB != MBB->succ_end()) {
-        if (MBB->isLayoutSuccessor(*IMBB))
-          FBB = *IMBB;
-        ++IMBB;
+      for (MachineBasicBlock *Succ : MBB->successors()) {
+        if (MBB->isLayoutSuccessor(Succ))
+          FBB = Succ;
       }
       if (FBB == NULL) {
         LLVM_DEBUG(dbgs() << "\nNo layout successor found.");
@@ -2685,11 +2683,12 @@ bool HexagonGlobalSchedulerImpl::AnalyzeBBBranches(MachineBasicBlock *MBB,
     // we will have a single terminator, but we can figure FBB
     // easily from CFG.
     if (MBB->succ_size() == 2) {
-      MachineBasicBlock::succ_iterator IMBB = MBB->succ_begin();
-      if (TBB == *IMBB)
-        FBB = *(++IMBB);
+      MachineBasicBlock *S0 = *MBB->succ_begin();
+      MachineBasicBlock *S1 = *std::next(MBB->succ_begin());
+      if (TBB == S0)
+        FBB = S1;
       else
-        FBB = *IMBB;
+        FBB = S0;
     }
   }
 
@@ -2725,6 +2724,11 @@ static void updateBranches(MachineBasicBlock &InBlock, MachineBasicBlock *From,
 
 /// Rewrite all predecessors of the old block to go to the fallthrough
 /// instead.
+/// NB: Collect predecessors into a snapshot vector before iterating to
+/// avoid iterator invalidation on MBB's predecessor list. Each call to
+/// ReplaceUsesOfBlockWith modifies both the successor list of Pred and
+/// the predecessor list of MBB, which invalidates debug-mode iterators
+/// (detected by _GLIBCXX_DEBUG).
 static void updatePredecessors(MachineBasicBlock &MBB,
                                MachineBasicBlock *MFBB) {
   MachineFunction &MF = *MBB.getParent();
@@ -2732,8 +2736,11 @@ static void updatePredecessors(MachineBasicBlock &MBB,
   if (MFBB->getIterator() == MF.end())
     return;
 
-  while (!MBB.pred_empty()) {
-    MachineBasicBlock *Pred = *(MBB.pred_end() - 1);
+  // Snapshot the predecessor list to avoid iterator invalidation.
+  SmallVector<MachineBasicBlock *, 4> Preds(MBB.pred_begin(), MBB.pred_end());
+  for (MachineBasicBlock *Pred : Preds) {
+    if (!Pred->isSuccessor(&MBB))
+      continue;
     Pred->ReplaceUsesOfBlockWith(&MBB, MFBB);
     updateBranches(*Pred, &MBB, MFBB);
   }
