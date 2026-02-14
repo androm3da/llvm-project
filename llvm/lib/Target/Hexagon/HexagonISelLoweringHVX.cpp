@@ -1431,6 +1431,20 @@ HexagonTargetLowering::extractHvxSubvectorPred(SDValue VecV, SDValue IdxV,
   // 8-byte vector. To avoid repeated extracts from ByteVec, shuffle the
   // elements so that the interesting 8 bytes will be in the low end of the
   // vector.
+
+  // The conversion below only handles scalar predicate results (ResLen == 8).
+  // For smaller non-HVX result sizes, first extract a v8i1 subvector, then
+  // use the scalar predicate extraction to get the final result.
+  if (ResLen < 8) {
+    MVT V8I1Ty = MVT::v8i1;
+    unsigned AlignedIdx = (Idx / 8) * 8;
+    SDValue AlignedIdxV = DAG.getConstant(AlignedIdx, dl, MVT::i32);
+    SDValue V8 = extractHvxSubvectorPred(VecV, AlignedIdxV, dl, V8I1Ty, DAG);
+    unsigned SubIdx = Idx - AlignedIdx;
+    SDValue SubIdxV = DAG.getConstant(SubIdx, dl, MVT::i32);
+    return extractVectorPred(V8, SubIdxV, dl, ResTy, ResTy, DAG);
+  }
+
   unsigned Rep = 8 / ResLen;
   // Make sure the output fill the entire vector register, so repeat the
   // 8-byte groups as many times as necessary.
