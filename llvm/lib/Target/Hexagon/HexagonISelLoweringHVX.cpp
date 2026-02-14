@@ -1112,7 +1112,7 @@ HexagonTargetLowering::createHvxPrefixPred(SDValue PredV, const SDLoc &dl,
   SDValue W0 = isUndef(PredV)
                   ? DAG.getUNDEF(MVT::i64)
                   : DAG.getNode(HexagonISD::P2D, dl, MVT::i64, PredV);
-  if (Bytes < BitBytes) {
+  if (Bytes <= BitBytes) {
     Words[IdxW].push_back(HiHalf(W0, DAG));
     Words[IdxW].push_back(LoHalf(W0, DAG));
   } else
