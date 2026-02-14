@@ -3774,6 +3774,50 @@ HexagonTargetLowering::LegalizeHvxResize(SDValue Op, SelectionDAG &DAG) const {
     auto [WInpTy, WResTy] =
         InpWidth < ResWidth ? typeWidenToWider(typeWidenToHvx(InpTy), ResTy)
                             : typeWidenToWider(InpTy, typeWidenToHvx(ResTy));
+
+    // If the widened result type would exceed HVX pair width, the normal
+    // path would create illegal nodes that cycle back into splitting.
+    // Handle this by doing step-by-step extension within legal type widths,
+    // extracting to reduce element count when a step would exceed the max.
+    unsigned HwWidth = 8 * Subtarget.getVectorLength();
+    unsigned MaxWidth = 2 * HwWidth; // HVX pair width in bits.
+    if (WResTy.getSizeInBits() > MaxWidth &&
+        (Opc == HexagonISD::TL_EXTEND || Opc == HexagonISD::TL_TRUNCATE)) {
+      const SDLoc &dl(Op);
+      SDValue Cur = appendUndef(Inp0, WInpTy, DAG);
+      unsigned CurElemWidth = WInpTy.getVectorElementType().getSizeInBits();
+      unsigned ResElemWidth = WResTy.getVectorElementType().getSizeInBits();
+      unsigned CurNumElems = WInpTy.getVectorNumElements();
+      unsigned TargetNumElems = ResTy.getVectorNumElements();
+
+      while (CurElemWidth < ResElemWidth) {
+        unsigned NextElemWidth = CurElemWidth * 2;
+        // If the next step would exceed the max legal width, extract
+        // the needed elements first to reduce the vector size.
+        if (CurNumElems * NextElemWidth > MaxWidth) {
+          unsigned NewNumElems = MaxWidth / NextElemWidth;
+          // Don't extract fewer elements than the target needs.
+          if (NewNumElems < TargetNumElems)
+            NewNumElems = TargetNumElems;
+          MVT ExtTy =
+              MVT::getVectorVT(MVT::getIntegerVT(CurElemWidth), NewNumElems);
+          Cur = DAG.getNode(ISD::EXTRACT_SUBVECTOR, dl, ExtTy,
+                            {Cur, DAG.getConstant(0, dl, MVT::i32)});
+          CurNumElems = NewNumElems;
+        }
+        MVT NextTy =
+            MVT::getVectorVT(MVT::getIntegerVT(NextElemWidth), CurNumElems);
+        Cur = DAG.getNode(Opc, dl, NextTy, Cur, Op.getOperand(1),
+                          Op.getOperand(2));
+        CurElemWidth = NextElemWidth;
+      }
+
+      MVT LegalResTy = typeLegalize(ResTy, DAG);
+      if (ty(Cur) != LegalResTy)
+        Cur = extractSubvector(Cur, LegalResTy, 0, DAG);
+      return Cur;
+    }
+
     SDValue W = appendUndef(Inp0, WInpTy, DAG);
     SDValue S;
     if (Opc == HexagonISD::TL_EXTEND || Opc == HexagonISD::TL_TRUNCATE) {
