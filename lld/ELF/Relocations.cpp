@@ -920,13 +920,7 @@ void RelocScan::process(RelExpr expr, RelType type, uint64_t offset,
       // stub type. It should be ignored if optimized to R_PC.
       if (ctx.arg.emachine == EM_PPC && expr == RE_PPC32_PLTREL)
         addend &= ~0x8000;
-      // R_HEX_GD_PLT_B22_PCREL (call a@GDPLT) is transformed into
-      // call __tls_get_addr even if the symbol is non-preemptible.
-      if (!(ctx.arg.emachine == EM_HEXAGON &&
-            (type == R_HEX_GD_PLT_B22_PCREL ||
-             type == R_HEX_GD_PLT_B22_PCREL_X ||
-             type == R_HEX_GD_PLT_B32_PCREL_X)))
-        expr = fromPlt(expr);
+      expr = fromPlt(expr);
     } else if (!isAbsoluteValue(sym) ||
                (type == R_PPC64_PCREL_OPT && ctx.arg.emachine == EM_PPC64)) {
       expr = ctx.target->adjustGotPcExpr(type, addend,
@@ -1214,14 +1208,12 @@ unsigned RelocScan::handleTlsRelocation(RelExpr expr, RelType type,
        type == R_LARCH_TLS_DESC_LD || type == R_LARCH_TLS_DESC_CALL ||
        type == R_LARCH_TLS_DESC_PCREL20_S2);
 
-  // ARM, Hexagon, LoongArch and RISC-V do not support GD/LD to IE/LE
-  // optimizations.
+  // ARM, LoongArch and RISC-V do not support GD/LD to IE/LE optimizations.
   // RISC-V supports TLSDESC to IE/LE optimizations.
   // For PPC64, if the file has missing R_PPC64_TLSGD/R_PPC64_TLSLD, disable
   // optimization as well.
   bool execOptimize =
       !ctx.arg.shared && ctx.arg.emachine != EM_ARM &&
-      ctx.arg.emachine != EM_HEXAGON &&
       (ctx.arg.emachine != EM_LOONGARCH || execOptimizeInLoongArch) &&
       !(isRISCV && expr != R_TLSDESC_PC && expr != R_TLSDESC_CALL) &&
       !sec->file->ppc64DisableTLSRelax;
