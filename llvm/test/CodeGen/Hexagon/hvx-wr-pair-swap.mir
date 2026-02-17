@@ -1,0 +1,146 @@
+# RUN: llc -mtriple=hexagon -mcpu=hexagonv67 -mattr=+hvxv67,+hvx-length128b \
+# RUN:   -run-pass hexagon-wr-pair-swap -o - %s | FileCheck %s
+
+# =============================================================================
+# basic_swap: A simple self-swap V6_vcombine should be eliminated.
+# W0.vsub_lo = V0, W0.vsub_hi = V1.
+# V6_vcombine puts Src1 into Vdd.hi and Src2 into Vdd.lo.
+# So $w0 = V6_vcombine $v0, $v1 puts V0(lo) into hi, V1(hi) into lo => swap.
+# =============================================================================
+# CHECK-LABEL: name: basic_swap
+# CHECK-NOT: V6_vcombine
+# CHECK: $w0 = V6_vaddb_dv $wr0, $wr0
+---
+name: basic_swap
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $w0
+    $w0 = V6_vcombine $v0, $v1
+    $w0 = V6_vaddb_dv $w0, $w0
+...
+
+# =============================================================================
+# non_swap_operands: vcombine with unrelated operands should not be changed.
+# =============================================================================
+# CHECK-LABEL: name: non_swap_operands
+# CHECK: V6_vcombine $v4, $v5
+---
+name: non_swap_operands
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $w0, $v4, $v5
+    $w0 = V6_vcombine $v4, $v5
+    $w0 = V6_vaddb_dv $w0, $w0
+...
+
+# =============================================================================
+# identity_combine: V6_vcombine that puts hi->hi, lo->lo (identity, not swap).
+# $w0 = V6_vcombine $v1, $v0 puts V1(hi) into hi, V0(lo) into lo => NOP.
+# This should NOT be transformed by this pass (separate concern).
+# =============================================================================
+# CHECK-LABEL: name: identity_combine
+# CHECK: V6_vcombine $v1, $v0
+---
+name: identity_combine
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $w0
+    $w0 = V6_vcombine $v1, $v0
+    $w0 = V6_vaddb_dv $w0, $w0
+...
+
+# =============================================================================
+# individual_vreg_use: swap followed by individual V register use.
+# Should NOT be transformed (conservative).
+# =============================================================================
+# CHECK-LABEL: name: individual_vreg_use
+# CHECK: V6_vcombine $v0, $v1
+---
+name: individual_vreg_use
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $w0, $r0
+    $w0 = V6_vcombine $v0, $v1
+    V6_vS32b_ai $r0, 0, $v0 :: (store (s1024))
+...
+
+# =============================================================================
+# live_out_block: swap with pair live-out via V regs to successor.
+# Should NOT be transformed (conservative).
+# =============================================================================
+# CHECK-LABEL: name: live_out_block
+# CHECK: V6_vcombine $v0, $v1
+---
+name: live_out_block
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $w0
+    successors: %bb.1
+    $w0 = V6_vcombine $v0, $v1
+    J2_jump %bb.1, implicit-def $pc
+
+  bb.1:
+    liveins: $v0
+    $v0 = V6_vaddw $v0, $v0
+...
+
+# =============================================================================
+# redef_after_swap: swap then pair use then redefinition of same pair.
+# Should eliminate the vcombine and rewrite only uses before redef.
+# =============================================================================
+# CHECK-LABEL: name: redef_after_swap
+# CHECK-NOT: V6_vcombine
+# CHECK: $w0 = V6_vaddb_dv $wr0, $wr0
+# CHECK: $w0 = V6_vaddb_dv $w1, $w1
+# CHECK: $w0 = V6_vaddb_dv $w0, $w0
+---
+name: redef_after_swap
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $w0, $w1
+    $w0 = V6_vcombine $v0, $v1
+    $w0 = V6_vaddb_dv $w0, $w0
+    $w0 = V6_vaddb_dv $w1, $w1
+    $w0 = V6_vaddb_dv $w0, $w0
+...
+
+# =============================================================================
+# multiple_swaps: two different pairs swapped in same BB.
+# Both should be eliminated.
+# =============================================================================
+# CHECK-LABEL: name: multiple_swaps
+# CHECK-NOT: V6_vcombine
+# CHECK: $w0 = V6_vaddb_dv $wr0, $wr0
+# CHECK: $w1 = V6_vaddb_dv $wr1, $wr1
+---
+name: multiple_swaps
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $w0, $w1
+    $w0 = V6_vcombine $v0, $v1
+    $w1 = V6_vcombine $v2, $v3
+    $w0 = V6_vaddb_dv $w0, $w0
+    $w1 = V6_vaddb_dv $w1, $w1
+...
+
+# =============================================================================
+# undef_operand: vcombine with undef operand should not be transformed.
+# =============================================================================
+# CHECK-LABEL: name: undef_operand
+# CHECK: V6_vcombine undef $v0, $v1
+---
+name: undef_operand
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $w0
+    $w0 = V6_vcombine undef $v0, $v1
+    $w0 = V6_vaddb_dv $w0, $w0
+...

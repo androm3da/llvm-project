@@ -226,6 +226,7 @@ LLVMInitializeHexagonTarget() {
   initializeHexagonOptimizeSZextendsPass(PR);
   initializeHexagonPeepholePass(PR);
   initializeHexagonSplitConst32AndConst64Pass(PR);
+  initializeHexagonVectorPairSwapPass(PR);
   initializeHexagonVectorPrintPass(PR);
   initializeHexagonQFPOptimizerPass(PR);
 }
@@ -475,6 +476,9 @@ void HexagonPassConfig::addPreEmitPass() {
     if (!DisableHexagonLiveVars)
       addPass(&HexagonLiveVariablesID);
   }
+
+  if (!NoOpt)
+    addPass(createHexagonVectorPairSwap());
 
   // Packetization is mandatory: it handles gather/scatter at all opt levels.
   addPass(createHexagonPacketizer(NoOpt));

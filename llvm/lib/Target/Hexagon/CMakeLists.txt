@@ -71,6 +71,7 @@ add_llvm_target(HexagonCodeGen
   HexagonTfrCleanup.cpp
   HexagonVectorCombine.cpp
   HexagonVectorLoopCarriedReuse.cpp
+  HexagonVectorPairSwap.cpp
   HexagonVectorPrint.cpp
   HexagonVExtract.cpp
   HexagonVLIWPacketizer.cpp

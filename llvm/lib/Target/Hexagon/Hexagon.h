@@ -67,6 +67,7 @@ void initializeHexagonStoreWideningPass(PassRegistry &);
 void initializeHexagonOptimizeSZextendsPass(PassRegistry &);
 void initializeHexagonPeepholePass(PassRegistry &);
 void initializeHexagonSplitConst32AndConst64Pass(PassRegistry &);
+void initializeHexagonVectorPairSwapPass(PassRegistry &);
 void initializeHexagonVectorPrintPass(PassRegistry &);
 
 void initializeHexagonQFPOptimizerPass(PassRegistry &);
@@ -113,6 +114,7 @@ FunctionPass *createHexagonStoreWidening();
 FunctionPass *createHexagonLoadWidening();
 FunctionPass *createHexagonTfrCleanup();
 FunctionPass *createHexagonVectorCombineLegacyPass();
+FunctionPass *createHexagonVectorPairSwap();
 FunctionPass *createHexagonVectorPrint();
 FunctionPass *createHexagonVExtract();
 FunctionPass *createHexagonExpandCondsets();
