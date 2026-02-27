@@ -1274,7 +1274,9 @@ def FShl32r: OutPatFrag<(ops node:$Rs, node:$Rt, node:$Ru),
 def FShl64i: OutPatFrag<(ops node:$Rs, node:$Rt, node:$S),
   (S2_lsr_i_p_or (S2_asl_i_p $Rs, $S),  $Rt, (Subi<64> $S))>;
 def FShl64r: OutPatFrag<(ops node:$Rs, node:$Rt, node:$Ru),
-  (S2_lsr_r_p_or (S2_asl_r_p $Rs, $Ru), $Rt, (A2_subri 64, $Ru))>;
+  (S2_lsr_r_p_or (S2_asl_r_p $Rs, (A2_andir $Ru, 63)),
+                  (S2_lsr_i_p $Rt, 1),
+                  (A2_subri 63, (A2_andir $Ru, 63)))>;
 
 // Combined SDNodeXForm: (Divu8 (Subi<64> $S))
 def Divu64_8: SDNodeXForm<imm, [{
@@ -1314,7 +1316,9 @@ def FShr32r: OutPatFrag<(ops node:$Rs, node:$Rt, node:$Ru),
 def FShr64i: OutPatFrag<(ops node:$Rs, node:$Rt, node:$S),
   (S2_asl_i_p_or (S2_lsr_i_p $Rt, $S),  $Rs, (Subi<64> $S))>;
 def FShr64r: OutPatFrag<(ops node:$Rs, node:$Rt, node:$Ru),
-  (S2_asl_r_p_or (S2_lsr_r_p $Rt, $Ru), $Rs, (A2_subri 64, $Ru))>;
+  (S2_asl_r_p_or (S2_lsr_r_p $Rt, (A2_andir $Ru, 63)),
+                  (S2_asl_i_p $Rs, 1),
+                  (A2_subri 63, (A2_andir $Ru, 63)))>;
 
 // Special cases:
 let AddedComplexity = 100 in {

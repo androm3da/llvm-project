@@ -60,10 +60,14 @@ b0:
 }
 
 ; CHECK-LABEL: f5
-; This is a rotate left by %a1(r2).
-; CHECK: r[[R50:[0-9]+]]:[[R51:[0-9]+]] = asl(r1:0,r2)
-; CHECK: r[[R52:[0-9]+]] = sub(#64,r2)
-; CHECK: r[[R50]]:[[R51]] |= lsr(r1:0,r[[R52]])
+; This is a rotate left by %a1(r2). The complement shift is decomposed as
+; (lsr Rt, #1) >> (63 - m) to avoid producing a shift amount of 64 when m=0,
+; which would be misinterpreted by the Hexagon 7-bit signed shift encoding.
+; CHECK: r[[R53:[0-9]+]] = and(r2,#63)
+; CHECK: r[[R54:[0-9]+]]:[[R55:[0-9]+]] = lsr(r1:0,#1)
+; CHECK: r[[R50:[0-9]+]]:[[R51:[0-9]+]] = asl(r1:0,r[[R53]])
+; CHECK: r[[R53]] = sub(#63,r[[R53]])
+; CHECK: r[[R50]]:[[R51]] |= lsr(r[[R54]]:[[R55]],r[[R53]])
 define i64 @f5(i64 %a0, i32 %a1) #0 {
 b0:
   %v0 = zext i32 %a1 to i64
@@ -86,10 +90,14 @@ b0:
 }
 
 ; CHECK-LABEL: f7
-; This is a rotate right by %a1(r2).
-; CHECK: r[[R70:[0-9]+]]:[[R71:[0-9]+]] = lsr(r1:0,r2)
-; CHECK: r[[R72:[0-9]+]] = sub(#64,r2)
-; CHECK: r[[R70]]:[[R71]] |= asl(r1:0,r[[R72]])
+; This is a rotate right by %a1(r2). The complement shift is decomposed as
+; (asl Rs, #1) << (63 - m) to avoid producing a shift amount of 64 when m=0,
+; which would be misinterpreted by the Hexagon 7-bit signed shift encoding.
+; CHECK: r[[R73:[0-9]+]] = and(r2,#63)
+; CHECK: r[[R74:[0-9]+]]:[[R75:[0-9]+]] = asl(r1:0,#1)
+; CHECK: r[[R70:[0-9]+]]:[[R71:[0-9]+]] = lsr(r1:0,r[[R73]])
+; CHECK: r[[R73]] = sub(#63,r[[R73]])
+; CHECK: r[[R70]]:[[R71]] |= asl(r[[R74]]:[[R75]],r[[R73]])
 define i64 @f7(i64 %a0, i32 %a1) #0 {
 b0:
   %v0 = zext i32 %a1 to i64

@@ -28,9 +28,11 @@ b0:
 }
 
 ; CHECK-LABEL: f3:
-; CHECK: r[[R30:[0-9]+]]:[[R31:[0-9]+]] = asl(r1:0,r4)
-; CHECK: r[[R32:[0-9]+]] = sub(#64,r4)
-; CHECK: r[[R30]]:[[R31]] |= lsr(r3:2,r[[R32]])
+; CHECK: r[[R33:[0-9]+]] = and(r4,#63)
+; CHECK: r[[R34:[0-9]+]]:[[R35:[0-9]+]] = lsr(r3:2,#1)
+; CHECK: r[[R30:[0-9]+]]:[[R31:[0-9]+]] = asl(r1:0,r[[R33]])
+; CHECK: r[[R33]] = sub(#63,r[[R33]])
+; CHECK: r[[R30]]:[[R31]] |= lsr(r[[R34]]:[[R35]],r[[R33]])
 define i64 @f3(i64 %a0, i64 %a1, i64 %a2) #1 {
 b0:
   %v0 = tail call i64 @llvm.fshl.i64(i64 %a0, i64 %a1, i64 %a2)
@@ -65,9 +67,11 @@ b0:
 }
 
 ; CHECK-LABEL: f7:
-; CHECK: r[[R70:[0-9]+]]:[[R71:[0-9]+]] = lsr(r3:2,r4)
-; CHECK: r[[R72:[0-9]+]] = sub(#64,r4)
-; CHECK: r[[R70]]:[[R71]] |= asl(r1:0,r6)
+; CHECK: r[[R73:[0-9]+]] = and(r4,#63)
+; CHECK: r[[R74:[0-9]+]]:[[R75:[0-9]+]] = asl(r1:0,#1)
+; CHECK: r[[R76:[0-9]+]] = sub(#63,r[[R73]])
+; CHECK: r[[R70:[0-9]+]]:[[R71:[0-9]+]] = lsr(r3:2,r[[R73]])
+; CHECK: r[[R70]]:[[R71]] |= asl(r[[R74]]:[[R75]],r[[R76]])
 define i64 @f7(i64 %a0, i64 %a1, i64 %a2) #1 {
 b0:
   %v0 = tail call i64 @llvm.fshr.i64(i64 %a0, i64 %a1, i64 %a2)
@@ -100,9 +104,11 @@ b0:
 }
 
 ; CHECK-LABEL: f11:
-; CHECK: r[[RB0:[0-9]+]]:[[RB1:[0-9]+]] = asl(r1:0,r2)
-; CHECK: r[[RB2:[0-9]+]] = sub(#64,r2)
-; CHECK: r[[RB0]]:[[RB1]] |= lsr(r1:0,r[[RB2]])
+; CHECK: r[[RB3:[0-9]+]] = and(r2,#63)
+; CHECK: r[[RB4:[0-9]+]]:[[RB5:[0-9]+]] = lsr(r1:0,#1)
+; CHECK: r[[RB0:[0-9]+]]:[[RB1:[0-9]+]] = asl(r1:0,r[[RB3]])
+; CHECK: r[[RB3]] = sub(#63,r[[RB3]])
+; CHECK: r[[RB0]]:[[RB1]] |= lsr(r[[RB4]]:[[RB5]],r[[RB3]])
 define i64 @f11(i64 %a0, i64 %a1) #1 {
 b0:
   %v0 = tail call i64 @llvm.fshl.i64(i64 %a0, i64 %a0, i64 %a1)
@@ -135,9 +141,11 @@ b0:
 }
 
 ; CHECK-LABEL: f15:
-; CHECK: r[[RF0:[0-9]+]]:[[RF1:[0-9]+]] = lsr(r1:0,r2)
-; CHECK: r[[RF2:[0-9]+]] = sub(#64,r2)
-; CHECK: r[[RF0]]:[[RF1]] |= asl(r1:0,r[[RF2]])
+; CHECK: r[[RF3:[0-9]+]] = and(r2,#63)
+; CHECK: r[[RF4:[0-9]+]]:[[RF5:[0-9]+]] = asl(r1:0,#1)
+; CHECK: r[[RF0:[0-9]+]]:[[RF1:[0-9]+]] = lsr(r1:0,r[[RF3]])
+; CHECK: r[[RF3]] = sub(#63,r[[RF3]])
+; CHECK: r[[RF0]]:[[RF1]] |= asl(r[[RF4]]:[[RF5]],r[[RF3]])
 define i64 @f15(i64 %a0, i64 %a1) #1 {
 b0:
   %v0 = tail call i64 @llvm.fshr.i64(i64 %a0, i64 %a0, i64 %a1)
