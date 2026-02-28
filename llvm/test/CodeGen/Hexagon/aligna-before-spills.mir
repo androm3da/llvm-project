@@ -1,0 +1,39 @@
+# RUN: llc -mtriple=hexagon -run-pass prologepilog %s -o - | FileCheck %s
+#
+# Verify that the PS_aligna instruction (which defines the aligned-pointer
+# register r16) is placed before any spill that references an AP-relative
+# stack slot.  Before the fix, frame-index elimination would rewrite the
+# spill to use $r16 as a base register while $r16 was still uninitialised.
+#
+# The expected prologue order is:
+#   1. allocframe
+#   2. SP alignment
+#   3. CSR spills (including the save of $d8 which preserves old $r16)
+#   4. PS_aligna  ($r16 = aligned frame pointer)
+#   5. spill stores that reference $r16
+#
+# CHECK-LABEL: name: test
+# CHECK: S2_allocframe
+# CHECK: S2_storerd_io $r30, -8, killed $d8
+# CHECK: PS_aligna
+# CHECK: S2_storeri_io $r16, {{-[0-9]+}}, killed $r0
+
+---
+name:            test
+tracksRegLiveness: true
+stack:
+  - { id: 0, type: variable-sized, offset: 0, alignment: 1 }
+  - { id: 1, type: spill-slot, size: 4, alignment: 4 }
+  - { id: 2, type: spill-slot, size: 128, alignment: 128 }
+body: |
+  bb.0:
+    liveins: $r0, $r16, $r17, $v0
+
+    ; Spill code placed before PS_aligna by the register allocator.
+    ; After frame-index elimination this will reference $r16.
+    S2_storeri_io %stack.1, 0, killed $r0
+
+    $r16 = PS_aligna 128, implicit $r30
+
+    PS_vstorerv_ai %stack.2, 0, killed $v0
+...

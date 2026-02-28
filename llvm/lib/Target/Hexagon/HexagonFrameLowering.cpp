@@ -509,8 +509,31 @@ void HexagonFrameLowering::emitPrologue(MachineFunction &MF,
     findShrunkPrologEpilog(MF, PrologB, EpilogB);
 
   bool PrologueStubs = false;
+  // Save the position of the first original instruction before inserting
+  // CSR spills and prologue. CSR spills and allocframe will be inserted
+  // before this point.
+  MachineBasicBlock::iterator OrigBegin = PrologB->begin();
   insertCSRSpillsInBlock(*PrologB, CSI, HRI, PrologueStubs);
   insertPrologueInBlock(*PrologB, PrologueStubs);
+
+  // If the function uses an aligned stack pointer (AP), the PS_aligna
+  // instruction that defines it may have been placed after spill code
+  // (inserted by the register allocator) that references AP-relative
+  // frame indices. After frame index elimination, those spill stores
+  // will use the AP register as a memory base, but appear before the
+  // AP definition -- leading to stores through an uninitialized register.
+  //
+  // Fix this by moving PS_aligna to the earliest safe position: right
+  // after the CSR spills (which must save the old AP value first) and
+  // before any original function body code.
+  if (auto *AlignaI = const_cast<MachineInstr *>(getAlignaInstr(MF))) {
+    assert(AlignaI->getParent() == PrologB &&
+           "PS_aligna should be in the prolog block");
+    if (AlignaI->getIterator() != OrigBegin) {
+      PrologB->splice(OrigBegin, PrologB, AlignaI->getIterator());
+    }
+  }
+
   updateEntryPaths(MF, *PrologB);
 
   if (EpilogB) {
