@@ -880,6 +880,13 @@ public:
     // each. For DBG_PHIs, only one operand will be present.
     for (MachineInstr *MI : Users) {
       if (MI->isDebugValue()) {
+        // If no debug operand currently overlaps with OldReg, this debug user
+        // was already updated by an earlier copy propagation.  Skip it.
+        if (!any_of(MI->debug_operands(), [this, &OldReg](MachineOperand &Op) {
+              return Op.isReg() &&
+                     getTargetRegisterInfo()->regsOverlap(Op.getReg(), OldReg);
+            }))
+          continue;
         for (auto &Op : MI->debug_operands())
           UpdateOp(Op);
         assert(MI->hasDebugOperandForReg(NewReg) &&
