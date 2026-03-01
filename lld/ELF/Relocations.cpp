@@ -922,6 +922,8 @@ void RelocScan::process(RelExpr expr, RelType type, uint64_t offset,
         addend &= ~0x8000;
       // R_HEX_GD_PLT_B22_PCREL (call a@GDPLT) is transformed into
       // call __tls_get_addr even if the symbol is non-preemptible.
+      // Don't optimise to R_PC here; postScanRelocations will rebind
+      // the relocation to __tls_get_addr.
       if (!(ctx.arg.emachine == EM_HEXAGON &&
             (type == R_HEX_GD_PLT_B22_PCREL ||
              type == R_HEX_GD_PLT_B22_PCREL_X ||
@@ -968,7 +970,13 @@ void RelocScan::process(RelExpr expr, RelType type, uint64_t offset,
         sym.setFlags(NEEDS_GOT | NEEDS_GOT_NONAUTH);
     }
   } else if (needsPlt(expr)) {
-    sym.setFlags(NEEDS_PLT);
+    // Don't create a PLT entry for the TLS symbol itself on Hexagon GD PLT
+    // relocations.  postScanRelocations will rebind these to __tls_get_addr
+    // and create the PLT entry there.
+    if (!(ctx.arg.emachine == EM_HEXAGON &&
+          (type == R_HEX_GD_PLT_B22_PCREL || type == R_HEX_GD_PLT_B22_PCREL_X ||
+           type == R_HEX_GD_PLT_B32_PCREL_X)))
+      sym.setFlags(NEEDS_PLT);
   } else if (LLVM_UNLIKELY(isIfunc)) {
     sym.setFlags(HAS_DIRECT_RELOC);
   }
@@ -1518,6 +1526,8 @@ static bool handleNonPreemptibleIfunc(Ctx &ctx, Symbol &sym, uint16_t flags) {
 }
 
 void elf::postScanRelocations(Ctx &ctx) {
+  ctx.target->postScanRelocations();
+
   auto fn = [&](Symbol &sym) {
     auto flags = sym.flags.load(std::memory_order_relaxed);
     if (handleNonPreemptibleIfunc(ctx, sym, flags))
@@ -2232,10 +2242,13 @@ void elf::hexagonTLSSymbolUpdate(Ctx &ctx) {
           for (Relocation &rel : isec->relocs())
             if (rel.sym->type == llvm::ELF::STT_TLS && rel.expr == R_PLT_PC) {
               if (needEntry) {
-                if (sym->auxIdx == 0)
+                // If postScanRelocations already created a PLT entry for
+                // __tls_get_addr (auxIdx != 0), skip creating another one.
+                if (sym->auxIdx == 0) {
                   sym->allocateAux(ctx);
-                addPltEntry(ctx, *ctx.in.plt, *ctx.in.gotPlt, *ctx.in.relaPlt,
-                            ctx.target->pltRel, *sym);
+                  addPltEntry(ctx, *ctx.in.plt, *ctx.in.gotPlt, *ctx.in.relaPlt,
+                              ctx.target->pltRel, *sym);
+                }
                 needEntry = false;
               }
               rel.sym = sym;

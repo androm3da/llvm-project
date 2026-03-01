@@ -8,6 +8,7 @@
 
 #include "InputFiles.h"
 #include "OutputSections.h"
+#include "SymbolTable.h"
 #include "Symbols.h"
 #include "SyntheticSections.h"
 #include "Target.h"
@@ -46,6 +47,7 @@ public:
   void writePltHeader(uint8_t *buf) const override;
   void writePlt(uint8_t *buf, const Symbol &sym,
                 uint64_t pltEntryAddr) const override;
+  void postScanRelocations() override;
 };
 } // namespace
 
@@ -581,6 +583,44 @@ void elf::mergeHexagonAttributesSections(Ctx &ctx) {
   // Add the merged section.
   ctx.inputSections.insert(ctx.inputSections.begin() + place,
                            mergeAttributesSection(ctx, sections));
+}
+
+static bool isGDPLT(RelType type) {
+  switch (type) {
+  case R_HEX_GD_PLT_B22_PCREL:
+  case R_HEX_GD_PLT_B22_PCREL_X:
+  case R_HEX_GD_PLT_B32_PCREL_X:
+    return true;
+  default:
+    return false;
+  }
+}
+
+void Hexagon::postScanRelocations() {
+  Symbol *ta = nullptr;
+
+  // Scan for R_HEX_GD_PLT_* relocations (classified as R_PLT_PC by
+  // getRelExpr) and rebind them to __tls_get_addr.  GD PLT relocations
+  // always resolve to __tls_get_addr, even for non-preemptible symbols,
+  // so we must not let the generic machinery optimise them to R_PC
+  // (direct call).  This runs single-threaded after all relocation
+  // scanning is complete, so it is safe to modify the symbol table.
+  for (ELFFileBase *f : ctx.objectFiles)
+    for (InputSectionBase *s : f->getSections())
+      if (auto *isec = dyn_cast_or_null<InputSection>(s))
+        if (isec->isLive())
+          for (Relocation &rel : isec->relocs())
+            if (rel.expr == R_PLT_PC && isGDPLT(rel.type)) {
+              if (!ta) {
+                ta = ctx.symtab->addSymbol(
+                    Undefined{ctx.internalFile, "__tls_get_addr", STB_GLOBAL,
+                              STV_DEFAULT, STT_NOTYPE});
+                ta->isPreemptible = true;
+                ta->setFlags(NEEDS_PLT);
+                ctx.partitions[0].dynSymTab->addSymbol(ta);
+              }
+              rel.sym = ta;
+            }
 }
 
 void elf::setHexagonTargetInfo(Ctx &ctx) { ctx.target.reset(new Hexagon(ctx)); }

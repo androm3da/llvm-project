@@ -117,6 +117,10 @@ public:
                                  JumpModType val) const {}
   virtual void applyBranchToBranchOpt() const {}
 
+  // Called after relocation scanning, before symbol flag processing.
+  // Targets may override this to rebind relocations or set additional flags.
+  virtual void postScanRelocations() {}
+
   virtual ~TargetInfo();
 
   // This deletes a jump insn at the end of the section if it is a fall thru to
