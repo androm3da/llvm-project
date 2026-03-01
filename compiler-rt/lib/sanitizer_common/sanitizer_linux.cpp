@@ -94,10 +94,11 @@ extern "C" SANITIZER_WEAK_ATTRIBUTE const char *strerrorname_np(int);
 #    include <sys/sysmacros.h>
 #  endif
 
-// Hexagon uses statx() instead of stat64(). The statx types and
-// STATX_BASIC_STATS are provided by <sys/stat.h> (already included above)
-// for both musl and glibc.  Do NOT include <linux/stat.h> here as it
-// conflicts with musl's definitions.
+// Hexagon uses statx() instead of stat64().  Musl's <sys/stat.h> does
+// not provide struct statx, so pull it from the kernel UAPI header.
+#  if SANITIZER_LINUX && defined(__hexagon__)
+#    include <linux/stat.h>
+#  endif
 
 #  if SANITIZER_LINUX && defined(__powerpc64__)
 #    include <asm/ptrace.h>
