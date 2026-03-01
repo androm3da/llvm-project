@@ -128,7 +128,7 @@ const unsigned struct_kernel_stat64_sz = 104;
 const unsigned struct_kernel_stat_sz = 128;
 const unsigned struct_kernel_stat64_sz = 0;  // RISCV64 does not use stat64
 #    elif defined(__hexagon__)
-const unsigned struct_kernel_stat_sz = 128;
+const unsigned struct_kernel_stat_sz = 152;
 const unsigned struct_kernel_stat64_sz = 0;
 #    elif defined(__loongarch__)
 const unsigned struct_kernel_stat_sz = 128;
