@@ -289,6 +289,10 @@ public:
   DFAPacketizer *
   CreateTargetScheduleState(const TargetSubtargetInfo &STI) const override;
 
+  /// Perform target-specific instruction verification.
+  bool verifyInstruction(const MachineInstr &MI,
+                         StringRef &ErrInfo) const override;
+
   // Sometimes, it is possible for the target
   // to tell, even without aliasing information, that two MIs access different
   // memory addresses. This function returns true if two MIs access different

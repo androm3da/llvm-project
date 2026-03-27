@@ -1,0 +1,72 @@
+## Verify that the MachineVerifier catches misaligned and out-of-range
+## immediates on Hexagon instructions.
+
+# RUN: split-file %s %t
+
+## S2_storerigp with a properly aligned immediate should pass.
+## opExtentBits = 18, unsigned, opExtentAlign = 2. Native range: [0, 262140].
+## Not extendable. 8 is in range and aligned to 4 bytes.
+# RUN: llc -mtriple=hexagon -run-pass=none -verify-machineinstrs \
+# RUN:   -filetype=null %t/aligned.mir
+
+## S2_storerigp with a misaligned immediate should fail.
+## Not extendable, so a misaligned value cannot be rescued by extension.
+## 3 is in range but not a multiple of 4.
+# RUN: not --crash llc -mtriple=hexagon -run-pass=none -verify-machineinstrs \
+# RUN:   -filetype=null %t/misaligned.mir 2>&1 \
+# RUN:   | FileCheck -check-prefix=CHECK-MISALIGN %s
+# CHECK-MISALIGN: Bad machine code: Immediate operand is not properly aligned
+# CHECK-MISALIGN-NEXT: - function:    test_misaligned_imm
+
+## S2_storerigp with an out-of-range value should fail.
+## Not extendable, so 262144 is out of range.
+# RUN: not --crash llc -mtriple=hexagon -run-pass=none -verify-machineinstrs \
+# RUN:   -filetype=null %t/out-of-range.mir 2>&1 \
+# RUN:   | FileCheck -check-prefix=CHECK-RANGE %s
+# CHECK-RANGE: Bad machine code: Immediate operand out of range
+# CHECK-RANGE-NEXT: - function:    test_out_of_range_non_extendable
+
+## S2_storeri_io with an out-of-range value should pass because the
+## instruction is extendable and the MC layer auto-extends it.
+# RUN: llc -mtriple=hexagon -run-pass=none -verify-machineinstrs \
+# RUN:   -filetype=null %t/out-of-range-extendable.mir
+
+#--- aligned.mir
+---
+name: test_aligned_imm
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $r0, $gp
+    S2_storerigp 8, $r0, implicit $gp
+...
+
+#--- misaligned.mir
+---
+name: test_misaligned_imm
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $r0, $gp
+    S2_storerigp 3, $r0, implicit $gp
+...
+
+#--- out-of-range.mir
+---
+name: test_out_of_range_non_extendable
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $r0, $gp
+    S2_storerigp 262144, $r0, implicit $gp
+...
+
+#--- out-of-range-extendable.mir
+---
+name: test_out_of_range_extendable
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $r0, $r1
+    S2_storeri_io $r0, 8192, $r1
+...

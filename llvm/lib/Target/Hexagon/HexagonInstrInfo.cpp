@@ -2012,6 +2012,72 @@ DFAPacketizer *HexagonInstrInfo::CreateTargetScheduleState(
   return static_cast<const HexagonSubtarget&>(STI).createDFAPacketizer(II);
 }
 
+bool HexagonInstrInfo::verifyInstruction(const MachineInstr &MI,
+                                         StringRef &ErrInfo) const {
+  // Check immediate operand range and alignment.
+  const uint64_t F = MI.getDesc().TSFlags;
+  unsigned Bits = (F >> HexagonII::ExtentBitsPos) & HexagonII::ExtentBitsMask;
+
+  if (Bits != 0) {
+    unsigned Align =
+        (F >> HexagonII::ExtentAlignPos) & HexagonII::ExtentAlignMask;
+    unsigned OpNum = getCExtOpNum(MI);
+
+    if (OpNum < MI.getNumOperands()) {
+      const MachineOperand &MO = MI.getOperand(OpNum);
+
+      if (MO.isImm()) {
+        int64_t Value = MO.getImm();
+
+        // Determine if the MC layer will constant-extend this instruction.
+        bool WillBeExtended =
+            isExtended(MI) ||
+            (MO.getTargetFlags() & HexagonII::HMOTF_ConstExtended) ||
+            (isExtendable(MI) &&
+             (Value < getMinValue(MI) || Value > getMaxValue(MI)));
+
+        // Alignment check: only for non-extendable instructions that are
+        // NOT extended.  For extendable instructions, a misaligned value
+        // should be rescued by constant extension in the MC layer (the
+        // extension provides the full 32-bit value without shifting).
+        if (!WillBeExtended && !isExtendable(MI) && Align > 0) {
+          if (Value & ((1LL << Align) - 1)) {
+            ErrInfo = "Immediate operand is not properly aligned";
+            return false;
+          }
+        }
+
+        // Range check: only for non-extendable instructions where
+        // auto-extension cannot rescue an out-of-range value.
+        if (!WillBeExtended && !isExtendable(MI)) {
+          if (Value < getMinValue(MI) || Value > getMaxValue(MI)) {
+            ErrInfo = "Immediate operand out of range";
+            return false;
+          }
+        }
+      }
+    }
+  }
+
+  // Check hardware loop structural coherence.
+  unsigned Opc = MI.getOpcode();
+  if (Opc == Hexagon::ENDLOOP0 || Opc == Hexagon::ENDLOOP1 ||
+      Opc == Hexagon::ENDLOOP01) {
+    const MachineOperand &MO = MI.getOperand(0);
+    if (MO.isMBB()) {
+      const MachineBasicBlock *TargetMBB = MO.getMBB();
+      const MachineBasicBlock *ContainingMBB = MI.getParent();
+      if (ContainingMBB && !ContainingMBB->isSuccessor(TargetMBB)) {
+        ErrInfo = "Hardware loop target is not a successor of the endloop "
+                  "block";
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
 // Inspired by this pair:
 //  %r13 = L2_loadri_io %r29, 136; mem:LD4[FixedStack0]
 //  S2_storeri_io %r29, 132, killed %r1; flags:  mem:ST4[FixedStack1]

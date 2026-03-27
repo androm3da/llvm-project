@@ -1,0 +1,58 @@
+## Verify that the MachineVerifier catches ENDLOOP instructions whose target
+## is not a successor of the containing block.
+
+# RUN: split-file %s %t
+
+## ENDLOOP0 where the target (bb.0) is a successor of bb.1 -- should pass.
+# RUN: llc -mtriple=hexagon -run-pass=none -verify-machineinstrs \
+# RUN:   -filetype=null %t/valid.mir
+
+## ENDLOOP0 where the target (bb.0) is NOT a successor of bb.1
+## -- should fail verification.
+# RUN: not --crash llc -mtriple=hexagon -run-pass=none -verify-machineinstrs \
+# RUN:   -filetype=null %t/invalid.mir 2>&1 \
+# RUN:   | FileCheck -check-prefix=CHECK-INVALID %s
+# CHECK-INVALID: Bad machine code: Hardware loop target is not a successor of the endloop block
+# CHECK-INVALID-NEXT: - function:    test_invalid_hwloop
+
+#--- valid.mir
+---
+name: test_valid_hwloop
+tracksRegLiveness: true
+body: |
+  bb.0:
+    successors: %bb.1
+    liveins: $lc0, $sa0
+    J2_jump %bb.1, implicit-def $pc
+
+  bb.1:
+    successors: %bb.0, %bb.2
+    liveins: $lc0, $sa0
+    ENDLOOP0 %bb.0, implicit-def $pc, implicit-def $lc0, implicit $sa0, implicit $lc0
+    J2_jump %bb.2, implicit-def $pc
+
+  bb.2:
+    liveins: $r0
+    PS_jmpret $r31, implicit-def dead $pc
+...
+
+#--- invalid.mir
+---
+name: test_invalid_hwloop
+tracksRegLiveness: true
+body: |
+  bb.0:
+    successors: %bb.1
+    liveins: $lc0, $sa0
+    J2_jump %bb.1, implicit-def $pc
+
+  bb.1:
+    successors: %bb.2
+    liveins: $lc0, $sa0
+    ENDLOOP0 %bb.0, implicit-def $pc, implicit-def $lc0, implicit $sa0, implicit $lc0
+    J2_jump %bb.2, implicit-def $pc
+
+  bb.2:
+    liveins: $r0
+    PS_jmpret $r31, implicit-def dead $pc
+...
