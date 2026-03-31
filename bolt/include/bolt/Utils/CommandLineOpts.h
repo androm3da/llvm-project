@@ -156,8 +156,16 @@ enum GadgetKindBitmask : unsigned {
                         GS_PTRAUTH_BRANCH_AND_CALL_TARGETS |
                         GS_PTRAUTH_SIGN_ORACLES | GS_PTRAUTH_AUTH_ORACLES,
 
+  /// Scan for privileged/trap instructions in Hexagon binaries.
+  GS_HEXAGON_TRAP = (1 << 5),
+  /// Collect function statistics for Hexagon binaries.
+  GS_HEXAGON_STATS = (1 << 6),
+
+  /// All Hexagon scanners.
+  GS_HEXAGON_ALL_MASK = GS_HEXAGON_TRAP | GS_HEXAGON_STATS,
+
   /// Run all implemented scanners.
-  GS_ALL_MASK = GS_PTRAUTH_ALL_MASK,
+  GS_ALL_MASK = GS_PTRAUTH_ALL_MASK | GS_HEXAGON_ALL_MASK,
 };
 
 } // namespace opts

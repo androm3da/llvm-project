@@ -19,6 +19,7 @@
 #include "bolt/Core/Relocation.h"
 #include "bolt/Passes/BinaryPasses.h"
 #include "bolt/Passes/CacheMetrics.h"
+#include "bolt/Passes/HexagonBinaryAnalysis.h"
 #include "bolt/Passes/IdenticalCodeFolding.h"
 #include "bolt/Passes/PAuthGadgetScanner.h"
 #include "bolt/Passes/ReorderFunctions.h"
@@ -312,6 +313,11 @@ static cl::list<GadgetKindBitmask> GadgetScannersToRun(
 
         clEnumValN(GS_PTRAUTH_ALL_MASK, "ptrauth-all",
                    "All Pointer Authentication scanners"),
+        clEnumValN(GS_HEXAGON_TRAP, "hexagon-trap",
+                   "Privileged/trap instruction scanner for Hexagon"),
+        clEnumValN(GS_HEXAGON_STATS, "hexagon-stats",
+                   "Function statistics for Hexagon binaries"),
+        clEnumValN(GS_HEXAGON_ALL_MASK, "hexagon-all", "All Hexagon scanners"),
         clEnumValN(GS_ALL_MASK, "all", "All implemented scanners")),
     cl::ZeroOrMore, cl::CommaSeparated, cl::cat(BinaryAnalysisCategory));
 
@@ -4155,14 +4161,23 @@ void RewriteInstance::runBinaryAnalyses() {
   for (auto NamedOptionSubmask : opts::GadgetScannersToRun)
     EnabledAnalyses |= NamedOptionSubmask;
 
-  // If no command line option was given, act as if "all" was specified.
-  if (opts::GadgetScannersToRun.empty())
-    EnabledAnalyses = opts::GS_ALL_MASK;
+  // If no command line option was given, enable target-appropriate scanners.
+  if (opts::GadgetScannersToRun.empty()) {
+    if (BC->isAArch64())
+      EnabledAnalyses = opts::GS_PTRAUTH_ALL_MASK;
+    else if (BC->isHexagon())
+      EnabledAnalyses = opts::GS_HEXAGON_ALL_MASK;
+  }
 
   const auto PtrAuthAnalyses = static_cast<opts::GadgetKindBitmask>(
       EnabledAnalyses & opts::GS_PTRAUTH_ALL_MASK);
-  if (PtrAuthAnalyses)
+  if (PtrAuthAnalyses && BC->isAArch64())
     Manager.registerPass(std::make_unique<PtrAuthScanner>(PtrAuthAnalyses));
+
+  if (EnabledAnalyses & opts::GS_HEXAGON_TRAP)
+    Manager.registerPass(std::make_unique<HexagonTrapScanner::Analysis>());
+  if (EnabledAnalyses & opts::GS_HEXAGON_STATS)
+    Manager.registerPass(std::make_unique<HexagonStatsScanner::Analysis>());
 
   BC->logBOLTErrorsAndQuitOnFatal(Manager.runPasses());
 }
