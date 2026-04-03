@@ -124,9 +124,15 @@ inline bool isAnnotationSentinel(const MCOperand &Op) {
 /// annotations.
 inline unsigned getNumPrimeOperands(const MCInst &Inst) {
   for (signed I = Inst.getNumOperands() - 1; I >= 0; --I) {
-    if (isAnnotationSentinel(Inst.getOperand(I)))
-      return I;
-    if (!Inst.getOperand(I).isInst() && !Inst.getOperand(I).isImm())
+    if (Inst.getOperand(I).isInst()) {
+      // Only a null MCInst operand is the annotation sentinel.
+      // Non-null MCInst operands (e.g. Hexagon duplex sub-instructions)
+      // are legitimate prime operands.
+      if (Inst.getOperand(I).getInst() == nullptr)
+        return I;
+      return Inst.getNumOperands();
+    }
+    if (!Inst.getOperand(I).isImm())
       return Inst.getNumOperands();
   }
   return Inst.getNumOperands();

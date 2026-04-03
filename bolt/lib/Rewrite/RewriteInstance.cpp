@@ -4379,6 +4379,7 @@ std::vector<BinarySection *> RewriteInstance::getCodeSections() {
       CodeSections.emplace_back(&Section);
 
   auto compareSections = [&](const BinarySection *A, const BinarySection *B) {
+    // Strict weak ordering requires irreflexivity: comp(a, a) must be false.
     if (A == B)
       return false;
 

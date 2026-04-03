@@ -140,7 +140,7 @@ private:
 
   MCInst::iterator getAnnotationInstOp(MCInst &Inst) const {
     for (MCInst::iterator Iter = Inst.begin(); Iter != Inst.end(); ++Iter) {
-      if (MCPlus::isAnnotationSentinel(*Iter))
+      if (Iter->isInst() && Iter->getInst() == nullptr)
         return Iter;
     }
     return Inst.end();
