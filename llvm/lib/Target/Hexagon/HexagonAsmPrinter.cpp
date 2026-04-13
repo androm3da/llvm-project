@@ -1033,6 +1033,16 @@ void HexagonAsmPrinter::EmitSled(const MachineInstr &MI, SledKind Kind) {
 }
 
 void HexagonAsmPrinter::LowerPATCHABLE_FUNCTION_ENTER(const MachineInstr &MI) {
+  const Function &F = MF->getFunction();
+  if (F.hasFnAttribute("patchable-function-entry")) {
+    unsigned Num;
+    if (F.getFnAttribute("patchable-function-entry")
+            .getValueAsString()
+            .getAsInteger(10, Num))
+      return;
+    emitNops(Num);
+    return;
+  }
   EmitSled(MI, SledKind::FUNCTION_ENTER);
 }
 
