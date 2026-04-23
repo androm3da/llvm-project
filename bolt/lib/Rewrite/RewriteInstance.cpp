@@ -2556,6 +2556,13 @@ void RewriteInstance::adjustCommandLineOptions() {
     exit(1);
   }
 
+  // Targets with limited branch range (e.g. Hexagon) use the compact code
+  // model for branch relaxation. The relaxLocalBranches path handles
+  // per-fragment branch relaxation using trampolines, which is
+  // architecture-generic.
+  if (BC->MIB->hasLimitedBranchRange() && !opts::CompactCodeModel)
+    opts::CompactCodeModel = true;
+
   if (opts::StrictMode && !BC->HasRelocations) {
     BC->errs()
         << "BOLT-WARNING: disabling strict mode (-strict) in non-relocation "

@@ -778,6 +778,34 @@ Error SplitFunctions::runOnFunctions(BinaryContext &BC) {
   return Error::success();
 }
 
+/// Non-branch/non-call instructions with PC-relative operands targeting basic
+/// blocks (e.g. Hexagon hardware loop setup: loop0/loop1) must stay in the
+/// same fragment as their target.  Cross-fragment distances can be megabytes,
+/// exceeding the limited PC-relative range of such instructions.  Pin both the
+/// source and target blocks to the main fragment.
+static void
+pinInstructionsWithPCRelTargets(BinaryFunction &BF,
+                                BinaryFunction::BasicBlockOrderType &Layout) {
+  BinaryContext &BC = BF.getBinaryContext();
+  for (BinaryBasicBlock *BB : Layout) {
+    for (MCInst &Inst : *BB) {
+      if (!BC.MIB->hasPCRelOperand(Inst) || BC.MIB->isBranch(Inst) ||
+          BC.MIB->isCall(Inst))
+        continue;
+      const MCSymbol *Sym = BC.MIB->getTargetSymbol(Inst);
+      if (!Sym)
+        continue;
+      BinaryBasicBlock *TargetBB = BF.getBasicBlockForLabel(Sym);
+      if (!TargetBB)
+        continue;
+      if (BB->getFragmentNum() != TargetBB->getFragmentNum()) {
+        BB->setCanOutline(false);
+        TargetBB->setCanOutline(false);
+      }
+    }
+  }
+}
+
 void SplitFunctions::splitFunction(BinaryFunction &BF, SplitStrategy &S) {
   if (BF.empty())
     return;
@@ -845,6 +873,8 @@ void SplitFunctions::splitFunction(BinaryFunction &BF, SplitStrategy &S) {
 
   BF.getLayout().updateLayoutIndices();
   S.fragment(NewLayout.begin(), NewLayout.end());
+
+  pinInstructionsWithPCRelTargets(BF, NewLayout);
 
   // Make sure all non-outlineable blocks are in the main-fragment.
   for (BinaryBasicBlock *const BB : NewLayout) {
