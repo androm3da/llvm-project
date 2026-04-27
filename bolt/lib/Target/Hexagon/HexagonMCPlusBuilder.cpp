@@ -263,7 +263,29 @@ public:
     if ((isBranch(Inst) || isCall(Inst)) && !isIndirectBranch(Inst) &&
         !isIndirectCall(Inst))
       return HexagonMCInstrInfo::isExtendable(*Info, Inst);
-    return false;
+    // Hardware loop setup instructions have a PC-relative loop-start
+    // target that must be relocated when the function moves.
+    switch (Inst.getOpcode()) {
+    case Hexagon::J2_loop0i:
+    case Hexagon::J2_loop0r:
+    case Hexagon::J2_loop1i:
+    case Hexagon::J2_loop1r:
+      return true;
+    default:
+      return false;
+    }
+  }
+
+  bool getPCRelOperandNum(const MCInst &Inst, unsigned &OpNum) const override {
+    switch (Inst.getOpcode()) {
+    case Hexagon::J2_loop0i:
+    case Hexagon::J2_loop0r:
+    case Hexagon::J2_loop1i:
+    case Hexagon::J2_loop1r:
+      return getSymbolRefOperandNum(Inst, OpNum);
+    default:
+      return false;
+    }
   }
 
   unsigned getInvertedBranchOpcode(unsigned Opcode) const {
@@ -319,6 +341,11 @@ public:
 
     Inst.getOperand(SymOpIndex) =
         MCOperand::createExpr(createHexExpr(TBB, *Ctx));
+  }
+
+  void replaceImmWithSymbol(MCInst &Inst, unsigned OpNum, const MCSymbol *Sym,
+                            MCContext &Ctx) const override {
+    Inst.getOperand(OpNum) = MCOperand::createExpr(createHexExpr(Sym, Ctx));
   }
 
   IndirectBranchType analyzeIndirectBranch(

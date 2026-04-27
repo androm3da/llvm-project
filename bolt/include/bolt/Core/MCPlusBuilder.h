@@ -1171,6 +1171,12 @@ public:
     return false;
   }
 
+  /// Return the operand number of a PC-relative target in a non-branch/call
+  /// instruction (e.g. hardware loop setup). Returns false if not applicable.
+  virtual bool getPCRelOperandNum(const MCInst &Inst, unsigned &OpNum) const {
+    return false;
+  }
+
   /// Return a number of the operand representing a memory.
   /// Return -1 if the instruction doesn't have an explicit memory field.
   virtual int getMemoryOperandNo(const MCInst &Inst) const {
@@ -2198,6 +2204,15 @@ public:
   virtual void replaceBranchTarget(MCInst &Inst, const MCSymbol *TBB,
                                    MCContext *Ctx) const {
     llvm_unreachable("not implemented");
+  }
+
+  /// Replace the immediate operand at \p OpNum with a symbol reference
+  /// to \p Sym. Used for non-branch/call PC-relative operands (e.g.
+  /// hardware loop targets) that need relocation when the function moves.
+  virtual void replaceImmWithSymbol(MCInst &Inst, unsigned OpNum,
+                                    const MCSymbol *Sym, MCContext &Ctx) const {
+    Inst.getOperand(OpNum) =
+        MCOperand::createExpr(MCSymbolRefExpr::create(Sym, Ctx));
   }
 
   /// Extract a symbol and an addend out of the fixup value expression.

@@ -1539,6 +1539,36 @@ Error BinaryFunction::disassemble() {
       }
     }
 
+    // Non-branch/call instruction with a PC-relative operand (e.g.
+    // hardware loop setup on Hexagon). Create a local label for the
+    // target and replace the immediate with a symbol reference so the
+    // address is updated when the function is moved.
+    if (MIB->hasHardwareLoops() && MIB->hasPCRelOperand(Instruction) &&
+        !MIB->isBranch(Instruction) && !MIB->isCall(Instruction)) {
+      unsigned OpNum;
+      if (MIB->getPCRelOperandNum(Instruction, OpNum)) {
+        MCOperand &Op = Instruction.getOperand(OpNum);
+        uint64_t TargetAddress = 0;
+        bool HasTarget = false;
+        if (Op.isImm()) {
+          TargetAddress = Op.getImm();
+          HasTarget = true;
+        } else if (Op.isExpr()) {
+          // The Hexagon disassembler wraps branch targets in
+          // MCConstantExpr via HexagonMCInstrInfo::addConstant().
+          int64_t Value;
+          if (Op.getExpr()->evaluateAsAbsolute(Value)) {
+            TargetAddress = static_cast<uint64_t>(Value);
+            HasTarget = true;
+          }
+        }
+        if (HasTarget && containsAddress(TargetAddress)) {
+          MCSymbol *TargetSymbol = getOrCreateLocalLabel(TargetAddress);
+          MIB->replaceImmWithSymbol(Instruction, OpNum, TargetSymbol, *Ctx);
+        }
+      }
+    }
+
 add_instruction:
     if (!getDWARFUnits().empty()) {
       SmallVector<DebugLineTableRowRef, 1> Rows;
