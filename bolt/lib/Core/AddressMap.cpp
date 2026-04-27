@@ -70,8 +70,9 @@ std::optional<AddressMap> AddressMap::parse(BinaryContext &BC) {
 
   AddressMap Parsed;
 
-  unsigned CodePointerSize = BC.AsmInfo->getCodePointerSize();
-  const size_t EntrySize = 2 * CodePointerSize;
+  // Entries are always 2x8 bytes: the emit side uses emitIntValue(..., 8)
+  // and emitSymbolValue(..., 8) regardless of target pointer size.
+  const size_t EntrySize = 2 * 8;
   auto parseSection =
       [&](BinarySection &Section,
           function_ref<void(uint64_t, uint64_t)> InsertCallback) {
@@ -82,8 +83,8 @@ std::optional<AddressMap> AddressMap::parse(BinaryContext &BC) {
         DataExtractor::Cursor Cursor(0);
 
         while (Cursor && !DE.eof(Cursor)) {
-          const uint64_t Input = DE.getUnsigned(Cursor, CodePointerSize);
-          const uint64_t Output = DE.getUnsigned(Cursor, CodePointerSize);
+          const uint64_t Input = DE.getUnsigned(Cursor, 8);
+          const uint64_t Output = DE.getUnsigned(Cursor, 8);
           InsertCallback(Input, Output);
         }
 

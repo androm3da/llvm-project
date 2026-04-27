@@ -754,36 +754,48 @@ HexagonMCCodeEmitter::getMachineOpValue(MCInst const &MI, MCOperand const &MO,
     auto Instrs = HexagonMCInstrInfo::bundleInstructions(*State.Bundle);
     const MCOperand *I = Instrs.begin() + State.Index - 1;
 
+    // Search backward through the bundle for the producer of UseReg.
+    // Lambda checks a single instruction for a matching producer.
+    auto CheckProducer = [&](MCInst const &Inst) -> bool {
+      DefReg1 = MCRegister();
+      DefReg2 = MCRegister();
+      ++SOffset;
+      if (HexagonMCInstrInfo::isVector(MCII, Inst))
+        ++VOffset;
+      if (HexagonMCInstrInfo::hasNewValue(MCII, Inst))
+        DefReg1 = HexagonMCInstrInfo::getNewValueOperand(MCII, Inst).getReg();
+      if (HexagonMCInstrInfo::hasNewValue2(MCII, Inst))
+        DefReg2 = HexagonMCInstrInfo::getNewValueOperand2(MCII, Inst).getReg();
+      if (!RegisterMatches(UseReg, DefReg1, DefReg2))
+        return false;
+      if (!HexagonMCInstrInfo::isPredicated(MCII, Inst))
+        return true;
+      assert(HexagonMCInstrInfo::isPredicated(MCII, MI) &&
+             "Unpredicated consumer depending on predicated producer");
+      return HexagonMCInstrInfo::isPredicatedTrue(MCII, Inst) ==
+             HexagonMCInstrInfo::isPredicatedTrue(MCII, MI);
+    };
+
     for (;; --I) {
       assert(I != Instrs.begin() - 1 && "Couldn't find producer");
       MCInst const &Inst = *I->getInst();
       if (HexagonMCInstrInfo::isImmext(Inst))
         continue;
 
-      DefReg1 = MCRegister();
-      DefReg2 = MCRegister();
-      ++SOffset;
-      if (HexagonMCInstrInfo::isVector(MCII, Inst)) {
-        // Vector instructions don't count scalars.
-        ++VOffset;
-      }
-      if (HexagonMCInstrInfo::hasNewValue(MCII, Inst))
-        DefReg1 = HexagonMCInstrInfo::getNewValueOperand(MCII, Inst).getReg();
-      if (HexagonMCInstrInfo::hasNewValue2(MCII, Inst))
-        DefReg2 = HexagonMCInstrInfo::getNewValueOperand2(MCII, Inst).getReg();
-      if (!RegisterMatches(UseReg, DefReg1, DefReg2)) {
-        // This isn't the register we're looking for
+      // Duplex instructions contain two sub-instructions that each occupy
+      // a separate slot. Check both (high first, then low) so that the
+      // producer can be found when it is inside a duplex.
+      if (HexagonMCInstrInfo::isDuplex(MCII, Inst)) {
+        // High sub-instruction (operand 1) is in the higher slot.
+        if (CheckProducer(*Inst.getOperand(1).getInst()))
+          break;
+        // Low sub-instruction (operand 0) is in the lower slot.
+        if (CheckProducer(*Inst.getOperand(0).getInst()))
+          break;
         continue;
       }
-      if (!HexagonMCInstrInfo::isPredicated(MCII, Inst)) {
-        // Producer is unpredicated
-        break;
-      }
-      assert(HexagonMCInstrInfo::isPredicated(MCII, MI) &&
-             "Unpredicated consumer depending on predicated producer");
-      if (HexagonMCInstrInfo::isPredicatedTrue(MCII, Inst) ==
-          HexagonMCInstrInfo::isPredicatedTrue(MCII, MI))
-        // Producer predicate sense matched ours.
+
+      if (CheckProducer(Inst))
         break;
     }
     // Hexagon PRM 10.11 Construct Nt from distance
