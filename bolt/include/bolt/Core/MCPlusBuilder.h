@@ -2541,6 +2541,28 @@ public:
     return 2;
   }
 
+  /// Target architecture properties queried by shared (target-generic) BOLT
+  /// code that needs to special-case behavior for a subset of targets. These
+  /// exist so that call sites ask "does this target have property X" instead
+  /// of enumerating specific targets; each target's MCPlusBuilder declares
+  /// which properties it has in one place, rather than that knowledge being
+  /// duplicated at every call site.
+  /// @{
+
+  /// Return true if the target packs multiple instructions into fixed-issue
+  /// bundles/packets (e.g. Hexagon VLIW packets) that must be tracked through
+  /// disassembly, encoding, and layout. When true, targets are expected to
+  /// also provide a non-null createBundleEmissionState().
+  virtual bool requiresBundling() const { return false; }
+
+  /// Return true if the target has zero-overhead/hardware-loop instructions
+  /// (e.g. Hexagon's loop0/loop1 and endloop packets) whose loop-setup
+  /// operands are PC-relative but are not themselves branches or calls, and
+  /// whose loop-end markers require preserving structural NOPs.
+  virtual bool hasHardwareLoops() const { return false; }
+
+  /// @}
+
   /// State object for targets that emit instructions as bundles (e.g.
   /// Hexagon VLIW packets). Created per-function by
   /// createBundleEmissionState().

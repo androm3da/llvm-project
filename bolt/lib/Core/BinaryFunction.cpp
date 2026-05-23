@@ -1580,7 +1580,7 @@ add_instruction:
     //   0b10 = hardware loop end (NOT a packet end -- marks endloop0/1),
     //   0b01 = not end (middle of packet),
     //   0b00 = duplex (always last word in packet).
-    if (BC.isHexagon() && Size >= 4) {
+    if (MIB->requiresBundling() && Size >= 4) {
       uint32_t RawWord =
           support::endian::read32le(FunctionData.data() + Offset);
       uint32_t ParseBits = RawWord & 0xc000;
@@ -1881,11 +1881,12 @@ bool BinaryFunction::scanExternalRefs() {
       }
     }
 
-    // On Hexagon, the MC encoder expects BUNDLE MCInsts and the
-    // createRelocation method is not implemented, so skip instruction
-    // encoding for external reference scanning. The branch-target
-    // handling above (which doesn't need encoding) is sufficient.
-    if (BC.isHexagon())
+    // On bundling targets (e.g. Hexagon), the MC encoder expects BUNDLE
+    // MCInsts and the createRelocation method is not implemented, so skip
+    // instruction encoding for external reference scanning. The
+    // branch-target handling above (which doesn't need encoding) is
+    // sufficient.
+    if (BC.MIB->requiresBundling())
       continue;
 
     // Emit the instruction using temp emitter and generate relocations.
@@ -2423,10 +2424,10 @@ Error BinaryFunction::buildCFG(MCPlusBuilder::AllocatorIdTy AllocatorId) {
       // If "Offset" annotation is not present, set it and mark the nop for
       // deletion.
       MIB->setOffset(Instr, static_cast<uint32_t>(Offset));
-      // Don't mark endloop NOPs for deletion -- Hexagon hardware loops
-      // require a minimum packet size at the endloop marker.
+      // Don't mark endloop NOPs for deletion -- hardware loops (e.g. on
+      // Hexagon) require a minimum packet size at the endloop marker.
       bool InEndLoopPacket = false;
-      if (BC.isHexagon()) {
+      if (MIB->hasHardwareLoops()) {
         if (MIB->hasAnnotation(Instr, "HexLoopEnd")) {
           InEndLoopPacket = true;
         } else {
@@ -2644,9 +2645,10 @@ Error BinaryFunction::buildCFG(MCPlusBuilder::AllocatorIdTy AllocatorId) {
     setSimple(false);
   }
 
-  // Hexagon VLIW: nops are structurally significant within packets,
-  // affecting packet size and hardware loop (endloop) marker positioning.
-  if (BC.isHexagon())
+  // On bundling targets (e.g. Hexagon VLIW), nops are structurally
+  // significant within packets, affecting packet size and hardware loop
+  // (endloop) marker positioning.
+  if (BC.MIB->requiresBundling())
     PreserveNops = true;
 
   // Clear externally referenced offsets only if there are no relocations
