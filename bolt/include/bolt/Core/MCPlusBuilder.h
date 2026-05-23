@@ -2561,6 +2561,12 @@ public:
   /// whose loop-end markers require preserving structural NOPs.
   virtual bool hasHardwareLoops() const { return false; }
 
+  /// Return true if the target's branch encodings have short enough
+  /// displacement fields that splitting a function into hot/cold fragments
+  /// routinely puts branches out of range, so the target should default to
+  /// the compact code model and always run branch relaxation (LongJmpPass).
+  virtual bool hasLimitedBranchRange() const { return false; }
+
   /// @}
 
   /// State object for targets that emit instructions as bundles (e.g.

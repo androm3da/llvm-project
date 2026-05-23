@@ -581,6 +581,8 @@ public:
 
   bool hasHardwareLoops() const override { return true; }
 
+  bool hasLimitedBranchRange() const override { return true; }
+
   std::unique_ptr<BundleEmissionState>
   createBundleEmissionState(MCContext &Ctx) const override {
     return std::make_unique<HexagonBundleEmissionState>(*this, Ctx);
