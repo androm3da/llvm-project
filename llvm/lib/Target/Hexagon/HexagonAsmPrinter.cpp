@@ -993,10 +993,8 @@ void HexagonAsmPrinter::LowerKCFI_CHECK(const MachineInstr &MI) {
   for (auto &Reg : ScratchRegs) {
     if (Reg != AddrReg)
       continue;
-    while (NextReg == AddrReg)
+    if (NextReg == AddrReg)
       ++NextReg;
-    assert(NextReg <= Hexagon::R15 &&
-           "Unable to find scratch register for KCFI_CHECK");
     Reg = NextReg++;
   }
   unsigned LoadReg = ScratchRegs[0];
@@ -1004,12 +1002,8 @@ void HexagonAsmPrinter::LowerKCFI_CHECK(const MachineInstr &MI) {
   unsigned PredReg = Hexagon::P0;
 
   // Adjust for patchable-function-prefix (nop padding before the function).
-  int64_t PrefixNops = 0;
-  (void)MI.getMF()
-      ->getFunction()
-      .getFnAttribute("patchable-function-prefix")
-      .getValueAsString()
-      .getAsInteger(10, PrefixNops);
+  int64_t PrefixNops = MI.getMF()->getFunction().getFnAttributeAsParsedInteger(
+      "patchable-function-prefix");
   int64_t Offset = -(PrefixNops * 4 + 4);
 
   // Emit the KCFI check sequence as individual packets.

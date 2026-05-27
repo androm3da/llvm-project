@@ -633,10 +633,7 @@ HexagonTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
 
   if (CLI.IsTailCall) {
     MFI.setHasTailCall();
-    SDValue Ret = DAG.getNode(HexagonISD::TC_RETURN, dl, MVT::Other, Ops);
-    if (CLI.CFIType)
-      Ret.getNode()->setCFIType(CLI.CFIType->getZExtValue());
-    return Ret;
+    return DAG.getNode(HexagonISD::TC_RETURN, dl, MVT::Other, Ops);
   }
 
   // Set this here because we need to know this for "hasFP" in frame lowering.
@@ -3984,7 +3981,6 @@ HexagonTargetLowering::EmitKCFICheck(MachineBasicBlock &MBB,
   switch (MBBI->getOpcode()) {
   case Hexagon::J2_callr:
   case Hexagon::PS_callr_nr:
-  case Hexagon::PS_tailcall_r:
     break;
   default:
     llvm_unreachable("Unexpected CFI call opcode");

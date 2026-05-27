@@ -98,6 +98,12 @@ define void @f6_target_r6() {
 ; ASM-NEXT:  if (p0.new) jump:t
 ; ASM:       r{{[0-9]+}}:{{[0-9]+}} = memd(##3134984174)
 
+; KCFI-LABEL: name: f6_target_r6
+; KCFI:       BUNDLE{{.*}} {
+; KCFI-NEXT:    KCFI_CHECK $r6, 12345678
+; KCFI-NEXT:    J2_callr{{.*}}killed $r6
+; KCFI-NEXT:  }
+
   %target = call ptr asm sideeffect "", "={r6}"()
   call void %target() [ "kcfi"(i32 12345678) ]
   ret void
@@ -112,6 +118,12 @@ define void @f7_target_r7() {
 ; ASM:       p0 = cmp.eq(r6,r8)
 ; ASM-NEXT:  if (p0.new) jump:t
 ; ASM:       r{{[0-9]+}}:{{[0-9]+}} = memd(##3134984174)
+
+; KCFI-LABEL: name: f7_target_r7
+; KCFI:       BUNDLE{{.*}} {
+; KCFI-NEXT:    KCFI_CHECK $r7, 12345678
+; KCFI-NEXT:    J2_callr{{.*}}killed $r7
+; KCFI-NEXT:  }
 
   %target = call ptr asm sideeffect "", "={r7}"()
   call void %target() [ "kcfi"(i32 12345678) ]
