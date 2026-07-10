@@ -22,6 +22,7 @@ GettingStarted
 OptimizingClang
 OptimizingLinux
 Heatmaps
+HexagonSupport
 ```
 
 # Reference
