@@ -7,7 +7,7 @@
 ## Introduction
 
 ShadowCallStack is an instrumentation pass, currently only implemented for
-aarch64 and RISC-V, that protects programs against return address overwrites
+aarch64, RISC-V, and Hexagon, that protects programs against return address overwrites
 (e.g. stack buffer overflows.) It works by saving a function's return address
 to a separately allocated 'shadow call stack' in the function prolog in
 non-leaf functions and loading the return address from the shadow call stack
@@ -48,8 +48,9 @@ the operating system should be preferred since otherwise all thread creation
 and destruction would need to be intercepted by the application.
 
 The instrumentation makes use of the platform register `x18` on AArch64,
-`x3` (`gp`) on RISC-V with software shadow stack and `ssp` on RISC-V with
-hardware shadow stack, which needs [Zicfiss][zicfiss] and `-fcf-protection=return`.
+`r19` on Hexagon, `x3` (`gp`) on RISC-V with software shadow stack and `ssp`
+on RISC-V with hardware shadow stack, which needs [Zicfiss][zicfiss] and
+`-fcf-protection=return`.
 Users can choose between the software and hardware based shadow stack
 implementation on RISC-V backend by passing `-fsanitize=shadow-call-stack`
 or `Zicfiss` with `-fcf-protection=return`.
