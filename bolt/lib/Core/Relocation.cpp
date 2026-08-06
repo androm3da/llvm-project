@@ -703,20 +703,6 @@ static bool isGOTHexagon(uint32_t Type) {
   }
 }
 
-static bool isGOTHexagon(uint32_t Type) {
-  switch (Type) {
-  default:
-    return false;
-  case ELF::R_HEX_GOT_32_6_X:
-  case ELF::R_HEX_GOT_16_X:
-  case ELF::R_HEX_GOT_11_X:
-  case ELF::R_HEX_GOTREL_32_6_X:
-  case ELF::R_HEX_GOTREL_16_X:
-  case ELF::R_HEX_GOTREL_11_X:
-    return true;
-  }
-}
-
 static bool isTLSX86(uint32_t Type) {
   switch (Type) {
   default:
