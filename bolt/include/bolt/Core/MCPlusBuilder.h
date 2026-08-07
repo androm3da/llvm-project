@@ -2582,6 +2582,15 @@ public:
   /// the compact code model and always run branch relaxation (LongJmpPass).
   virtual bool hasLimitedBranchRange() const { return false; }
 
+  /// Return true if relocations against this target can legitimately encode
+  /// a value that does not directly match "symbol address + addend" (e.g.
+  /// AArch64 ADRP+ADD pairs, RISC-V AUIPC+ADDI/GOT-relative accesses,
+  /// Hexagon GOT-relative constant extenders). Shared code uses this to skip
+  /// strict relocation-value verification and BinaryData name-matching
+  /// assertions that only hold for simpler, direct addressing modes (e.g.
+  /// X86 absolute/PC32 relocations).
+  virtual bool usesIndirectRelocations() const { return false; }
+
   /// @}
 
   /// State object for targets that emit instructions as bundles (e.g.

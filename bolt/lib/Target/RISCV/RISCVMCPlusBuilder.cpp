@@ -39,6 +39,8 @@ class RISCVMCPlusBuilder : public MCPlusBuilder {
 public:
   using MCPlusBuilder::MCPlusBuilder;
 
+  bool usesIndirectRelocations() const override { return true; }
+
   bool equals(const MCSpecifierExpr &A, const MCSpecifierExpr &B,
               CompFuncTy Comp) const override {
     const auto &RISCVExprA = cast<MCSpecifierExpr>(A);

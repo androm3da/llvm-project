@@ -2853,7 +2853,7 @@ bool RewriteInstance::analyzeRelocation(
     if (SkipVerification)
       return true;
 
-    if (IsAArch64 || BC->isRISCV() || BC->isHexagon())
+    if (BC->MIB->usesIndirectRelocations())
       return true;
 
     if (SymbolName == "__hot_start" || SymbolName == "__hot_end")
@@ -3466,12 +3466,13 @@ void RewriteInstance::handleRelocation(const SectionRef &RelocatedSection,
 
     if (BinaryData *BD = BC->getBinaryDataContainingAddress(SymbolAddress)) {
       // Note: this assertion is trying to check sanity of BinaryData objects
-      // but AArch64 and RISCV has inferred and incomplete object locations
-      // coming from GOT/TLS or any other non-trivial relocation (that requires
-      // creation of sections and whose symbol address is not really what should
-      // be encoded in the instruction). So we essentially disabled this check
-      // for AArch64 and live with bogus names for objects.
-      assert((IsAArch64 || BC->isRISCV() || IsSectionRelocation ||
+      // but targets with indirect relocations (AArch64, RISCV, Hexagon) have
+      // inferred and incomplete object locations coming from GOT/TLS or any
+      // other non-trivial relocation (that requires creation of sections and
+      // whose symbol address is not really what should be encoded in the
+      // instruction). So we essentially disabled this check for those
+      // targets and live with bogus names for objects.
+      assert((BC->MIB->usesIndirectRelocations() || IsSectionRelocation ||
               BD->nameStartsWith(SymbolName) ||
               BD->nameStartsWith("PG" + SymbolName) ||
               (BD->nameStartsWith("ANONYMOUS") &&
@@ -3490,8 +3491,14 @@ void RewriteInstance::handleRelocation(const SectionRef &RelocatedSection,
     } else {
       // These are mostly local data symbols but undefined symbols
       // in relocation sections can get through here too, from .plt.
+      //
+      // Note: as with the BinaryData sanity check above, targets with
+      // indirect relocations (AArch64, RISCV, Hexagon) can legitimately have
+      // SymbolAddress fall outside any known section, and
+      // getSectionNameForAddress() itself asserts on failure, so it must not
+      // be evaluated for those targets.
       assert(
-          (IsAArch64 || BC->isRISCV() || IsSectionRelocation ||
+          (BC->MIB->usesIndirectRelocations() || IsSectionRelocation ||
            BC->getSectionNameForAddress(SymbolAddress)->starts_with(".plt")) &&
           "known symbols should not resolve to anonymous locals");
 

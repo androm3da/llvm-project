@@ -218,6 +218,8 @@ public:
   MCPhysReg getFramePointer() const override { return AArch64::FP; }
   MCPhysReg getFlagsReg() const override { return AArch64::NZCV; }
 
+  bool usesIndirectRelocations() const override { return true; }
+
   bool isBreakpoint(const MCInst &Inst) const override {
     return Inst.getOpcode() == AArch64::BRK;
   }
