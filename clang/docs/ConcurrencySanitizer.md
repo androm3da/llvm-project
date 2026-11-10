@@ -29,10 +29,17 @@ cmake ../llvm -G Ninja                       \
 
 CSan currently supports:
 
-- Linux on x86-64.
+- Linux on x86-64 and Hexagon.
 - AMDGPU devices on Linux through the HSA runtime.
 
 Support for other hosts and GPU targets is not currently implemented.
+
+The host detector uses a fixed-size watchpoint table and does not reserve a
+shadow address space. Its packed watchpoints accommodate all 32-bit addresses,
+including on Hexagon, and the low 48 bits of addresses on 64-bit hosts. The
+runtime requires lock-free 64-bit atomics. Hexagon support targets Linux with
+threads and TLS; bare-metal environments and GPU offloading from Hexagon are
+not supported.
 
 ## Usage
 
