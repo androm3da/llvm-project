@@ -42,7 +42,9 @@ using HostWatchpointTable =
 static u64 HostWatchpoints[kHostWatchpointEntries +
                            HostWatchpointTable::OverflowEntries];
 static_assert(HostWatchpointTable::AddressBits == 48,
-              "host watchpoints require 48-bit pointers");
+              "host watchpoints reserve 48 bits for addresses");
+// All 32-bit addresses fit in the packed watchpoint. On 64-bit hosts,
+// CheckAccess skips addresses outside the representable range.
 
 static HostWatchpointTable GetHostWatchpoints() {
   return HostWatchpointTable(HostWatchpoints);
