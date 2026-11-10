@@ -616,7 +616,16 @@ uptr internal_rename(const char *oldpath, const char *newpath) {
 uptr internal_sched_yield() { return internal_syscall(SYSCALL(sched_yield)); }
 
 void internal_usleep(u64 useconds) {
+#    if SANITIZER_LINUX && !SANITIZER_LINUX_USES_64BIT_SYSCALLS
+  // The legacy nanosleep syscall uses 32-bit fields even when libc's
+  // timespec uses a 64-bit time_t.
+  struct {
+    s32 tv_sec;
+    s32 tv_nsec;
+  } ts;
+#    else
   struct timespec ts;
+#    endif
   ts.tv_sec = useconds / 1000000;
   ts.tv_nsec = (useconds % 1000000) * 1000;
   internal_syscall(SYSCALL(nanosleep), &ts, &ts);
